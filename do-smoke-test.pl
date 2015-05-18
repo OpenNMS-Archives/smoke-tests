@@ -5,7 +5,9 @@ use warnings;
 
 use Config qw();
 use Cwd qw(abs_path);
+use DBI;
 use File::Basename;
+use File::Copy;
 use File::Find;
 use File::Path;
 use File::ShareDir qw(:ALL);
@@ -87,6 +89,9 @@ if (not defined $XVFB_RUN or $XVFB_RUN eq "" or ! -x $XVFB_RUN) {
 stop_opennms();
 remove_opennms();
 clean_yum();
+install_opennms();
+drop_database();
+configure_opennms();
 
 fail(1);
 
@@ -168,7 +173,7 @@ sub clean_yum {
 					my @stats = stat($File::Find::name);
 					if ($now - $stats[9] > 86400) { # 1 day
 						print "  * $File::Find::name\n";
-						#unlink($File::Find::name);
+						unlink($File::Find::name);
 					}
 				}
 			},
@@ -195,17 +200,104 @@ sub stop_opennms {
 }
 
 sub remove_opennms {
+	print "- Removing 'opennms-core' and 'meridian-core':\n";
+	system('yum', '-y', 'remove', 'opennms-core', 'meridian-core') == 0 or fail(1, "Unable to remove 'opennms-core' and 'meridian-core'.");
+
 	my @packages = grep { /(opennms|meridian)/ && !/^opennms-repo-/ } get_installed_packages();
 	if (@packages > 0) {
 		print "- removing the following packages: ", join(', ', @packages), "\n";
 		system('yum', '-y', 'remove', @packages) == 0 or fail(1, "Unable to remove packages: " . join(", ", @packages));
 	} else {
-		print "- There are no existing OpenNMS packages to remove.\n";
+		print "- There are no other existing OpenNMS packages to remove.\n";
 	}
 	for my $dir ($OPENNMS_HOME, '/usr/lib/opennms', '/usr/share/opennms', '/var/lib/opennms', '/var/log/opennms', '/var/opennms') {
 		if (-e $dir) {
 			rmtree($dir) or fail(1, "Failed to remove $dir: $!");
 		}
+	}
+}
+
+sub install_opennms {
+	opendir(DIR, $RPMDIR) or fail(1, "Failed to open $RPMDIR for reading: $!");
+
+	my @files = map { File::Spec->catfile($RPMDIR, $_) } grep { /\.rpm$/ } readdir(DIR);
+	print "- Installing the following packages:\n";
+	print map { "  * " . $_ . "\n" } @files;
+	print "\n";
+	# 'install' now supports file names
+	#system('yum', '-y', 'localinstall', @files) == 0 or fail(1, "Unable to install packages from $RPMDIR");
+	system('yum', '-y', 'install', @files) == 0 or fail(1, "Unable to install packages from $RPMDIR");
+
+	closedir(DIR) or fail(1, "Failed to close $RPMDIR: $!");
+}
+
+sub configure_opennms {
+	print "- Updating default OpenNMS configuration files... ";
+	my $rootdir = File::Spec->catdir($TOPDIR, "opennms-home");
+	find(sub {
+		my $relative = File::Spec->abs2rel($File::Find::name, $rootdir);
+		my $opennms = File::Spec->catfile($OPENNMS_HOME, $relative);
+		return unless (-f $File::Find::name);
+		copy($File::Find::name, $opennms);
+	}, $rootdir);
+	print "done\n";
+
+	print "- Trying 'runjava -S $JAVA'... ";
+	my $runjava = File::Spec->catfile($OPENNMS_HOME, "bin", "runjava");
+	my $output = `"$runjava" -S "$JAVA" 2>&1`;
+	if ($? == 0) {
+		print "done\n";
+	} else {
+		print "failed\n";
+		print "- Trying 'runjava -s'... ";
+		$output = `"$runjava" -s`;
+		if ($? == 0) {
+			print "done\n";
+		} else {
+			fail(1, "'runjava -s' failed:\n" . $output);
+		}
+	}
+
+	print "- Configuring OpenNMS:\n";
+	system(File::Spec->catfile($OPENNMS_HOME, "bin", "install"), "-dis") == 0 or fail(1, "Failed while running 'install -dis'.");
+}
+
+sub drop_database {
+	print "- Restarting PostgreSQL... ";
+	system("service", "postgresql", "restart") == 0 or fail(1, "Unable to restart PostgreSQL: $!");
+	print "done\n";
+
+	my $in = IO::Handle->new();
+	my $out = IO::Handle->new();
+	my $err = IO::Handle->new();
+	my $ok = 0;
+	my $output = "";
+
+	print "- Dropping the 'OpenNMS' database... ";
+	my $pid = open3($in, $out, $err, 'dropdb', '-U', 'postgres', 'opennms');
+	close($out) or fail(1, "Failed to close STDOUT on dropdb command: $!");
+	close($in) or fail(1, "Failed to close STDIN on dropdb command: $!");
+	while (my $line = <$err>) {
+		chomp($line);
+		if ($line =~ /does not exist/) {
+			$ok = 1;
+		}
+		$output .= "\n" . $line;
+	}
+	close($err);
+	waitpid($pid, 0);
+	my $child_exit_status = $? >> 8;
+
+	if ($child_exit_status == 0) {
+		$ok = 1;
+	}
+
+	if ($ok) {
+		print "done\n";
+		return;
+	} else {
+		print "failed\n";
+		fail(1, "Failed to drop database:\n" . $output);
 	}
 }
 
