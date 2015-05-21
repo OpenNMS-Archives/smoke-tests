@@ -4,7 +4,7 @@
 Name:			debian-shunt
 Summary:		Placeholder package to make RPM on debian happy
 Version:		1.0
-Release:		2
+Release:		3
 License:		Public Domain
 Group:			Development/Tools
 BuildArch:		noarch
