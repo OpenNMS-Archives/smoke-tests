@@ -13,6 +13,7 @@ use File::Path;
 use File::ShareDir qw(:ALL);
 use File::Slurp;
 use File::Spec;
+use File::Tail;
 use IO::Handle;
 use IPC::Open3;
 use POSIX;
@@ -88,18 +89,18 @@ if (not defined $XVFB_RUN or $XVFB_RUN eq "" or ! -x $XVFB_RUN) {
 
 stop_opennms();
 remove_opennms();
+clean_temp();
 clean_yum();
 install_opennms();
 drop_database();
 configure_opennms();
+clean_logs();
+start_opennms();
+build_test_api();
+build_smoke_tests();
+run_smoke_tests();
 
-fail(1);
-
-chdir($OPENNMS_TESTDIR);
-system($XVFB_RUN, '--wait=20', '--server-args=-screen 0 1920x1080x24', '--server-num=80', '--auto-servernum', '--listen-tcp', $SCRIPT);
-my $ret = $? >> 8;
-
-fail($ret);
+exit(0);
 
 sub usage {
 	print STDERR "usage: $0 <opennms-test-source-directory> <opennms-rpm-directory>\n\n";
@@ -137,6 +138,9 @@ sub fail {
 }
 
 sub clean_up {
+	# shut down OpenNMS if we can
+	stop_opennms();
+
 	# make sure everything is owned by non-root
 	if (defined $OPENNMS_TESTDIR) {
 		print "- fixing ownership of $OPENNMS_TESTDIR... ";
@@ -149,17 +153,36 @@ sub clean_up {
 			$gid = getgrnam('opennms');
 		}
 		if (defined $uid and defined $gid) {
-			find(
-				sub {
+			find({
+				wanted => sub {
 					chown($uid, $gid, $File::Find::name);
 				},
-				$OPENNMS_TESTDIR
-			);
+				bydepth => 1,
+				follow => 1,
+			}, $OPENNMS_TESTDIR);
 			print "done\n";
 		} else {
 			print "unable to determine proper owner\n";
 		}
 	}
+}
+
+sub clean_temp {
+	print "- cleaning out old /tmp files from tests... ";
+	find({
+		wanted => sub {
+			if ($_ =~ /^(FileAnticipator_temp|StringResource\d+|com\.vaadin\.client\.metadata\.ConnectorBundleLoaderImpl|mockSnmpAgent\d+|stdout\d+)/) {
+				if (-d $_) {
+					rmtree($File::Find::name);
+				} else {
+					unlink($File::Find::name);
+				}
+			}
+		},
+		bydepth => 1,
+		follow => 1,
+	}, '/tmp');
+	print "done\n";
 }
 
 sub clean_yum {
@@ -186,8 +209,49 @@ sub clean_yum {
 	}
 }
 
+sub clean_logs {
+	print "- cleaning out old OpenNMS logs... ";
+	find({
+		wanted => sub {
+			if (-f $_) {
+				unlink($_);
+			}
+		},
+		bydepth => 1,
+		follow => 1,
+	}, File::Spec->catdir($OPENNMS_HOME, 'logs'));
+	print "done\n";
+}
+
+sub start_opennms {
+	print "- starting OpenNMS... ";
+	my $opennms = File::Spec->catfile($OPENNMS_HOME, "bin", "opennms");
+	my $timeout = 300;
+
+	if (-x '/bin/systemctl') {
+		system("systemctl", "start", "opennms") == 0 or fail(1, "Unable to start OpenNMS: $!");
+	} elsif (-x '/usr/sbin/service' or -x '/sbin/service') {
+		system("service", "opennms", "start") == 0 or fail(1, "Unable to start OpenNMS: $!");
+	} else {
+		system($opennms, "start") == 0 or fail(1, "Unable to start OpenNMS: $!");
+	}
+
+	# wait for 2 minutes for OpenNMS to start
+	my $wait_until = (time() + $timeout);
+	while (time() < $wait_until) {
+		my $status = `"$opennms" status`;
+		if ($status =~ /opennms is running/) {
+			print "done\n";
+			return 1;
+		}
+		sleep(1);
+	}
+
+	fail(1, "\`opennms status\` never said OpenNMS is running after waiting $timeout seconds... :(");
+}
+
 sub stop_opennms {
-	print "- stopping OpenNMS... ";
+	print "- stopping OpenNMS...";
 	if (is_opennms_running()) {
 		print "\n";
 		system("systemctl", "stop", "opennms");
@@ -197,6 +261,27 @@ sub stop_opennms {
 	} else {
 		print "OpenNMS is not running.\n";
 	}
+}
+
+sub build_test_api {
+	print "- building the OpenNMS smoke test API:\n";
+
+	chdir(File::Spec->catdir($TOPDIR, 'test-api'));
+	system(File::Spec->catfile($OPENNMS_TESTDIR, 'compile.pl'), 'install') == 0 or fail(1, "failed to build smoke test API: $!");
+}
+
+sub build_smoke_tests {
+	print "- building OpenNMS smoke tests:\n";
+
+	chdir($OPENNMS_TESTDIR);
+	system("./compile.pl", "-Dsmoke=true", "--also-make", "--projects", "org.opennms:smoke-test", "install") == 0 or fail(1, "failed to compile smoke tests: $!");
+}
+
+sub run_smoke_tests {
+	print "- running OpenNMS smoke tests:\n";
+
+	chdir(File::Spec->catdir($OPENNMS_TESTDIR, "smoke-test"));
+	system($XVFB_RUN, '--wait=20', '--server-args=-screen 0 1920x1080x24', '--server-num=80', '--auto-servernum', '--listen-tcp', '../compile.pl', '-Dorg.opennms.smoketest.logLevel=INFO', '-Dsmoke=true', '-t', 'test') == 0 or fail(1, "failed to run smoke tests: $!");
 }
 
 sub remove_opennms {
@@ -234,11 +319,15 @@ sub install_opennms {
 sub configure_opennms {
 	print "- Updating default OpenNMS configuration files... ";
 	my $rootdir = File::Spec->catdir($TOPDIR, "opennms-home");
-	find(sub {
-		my $relative = File::Spec->abs2rel($File::Find::name, $rootdir);
-		my $opennms = File::Spec->catfile($OPENNMS_HOME, $relative);
-		return unless (-f $File::Find::name);
-		copy($File::Find::name, $opennms);
+	find({
+		wanted => sub {
+			my $relative = File::Spec->abs2rel($File::Find::name, $rootdir);
+			my $opennms = File::Spec->catfile($OPENNMS_HOME, $relative);
+			return unless (-f $File::Find::name);
+			copy($File::Find::name, $opennms);
+		},
+		bydepth => 1,
+		follow => 1,
 	}, $rootdir);
 	print "done\n";
 
