@@ -99,6 +99,7 @@ start_opennms();
 build_test_api();
 build_smoke_tests();
 run_smoke_tests();
+clean_mozilla_home();
 
 exit(0);
 
@@ -299,6 +300,13 @@ sub remove_opennms {
 		if (-e $dir) {
 			rmtree($dir) or fail(1, "Failed to remove $dir: $!");
 		}
+	}
+}
+
+sub clean_mozilla_home {
+	my $mozilla_home = File::Spec->catdir($ENV{'HOME'}, '.mozilla');
+	if (-d $mozilla_home) {
+		rmtree($mozilla_home);
 	}
 }
 
