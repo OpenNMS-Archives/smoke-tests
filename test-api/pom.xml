@@ -5,7 +5,7 @@
   <name>OpenNMS Smoke Test</name>
   <groupId>org.opennms.smoke</groupId>
   <artifactId>org.opennms.smoke.test-api</artifactId>
-  <version>1.0.0</version>
+  <version>1.0.1-SNAPSHOT</version>
 
   <properties>
     <opennmsVersion>16.0.0</opennmsVersion>
