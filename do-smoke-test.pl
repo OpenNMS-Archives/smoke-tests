@@ -29,7 +29,6 @@ use vars qw(
 	$OPENNMS_TESTDIR
 	$RPMDIR
 
-	$SCRIPT
 	$XVFB_RUN
 	$JAVA
 
@@ -50,7 +49,6 @@ print $0 . ' ' . version->new($OpenNMS::Release::VERSION) . "\n";
 $ENV{'PATH'} = $ENV{'PATH'} . $Config::Config{path_sep} . '/usr/sbin' . $Config::Config{path_sep} . '/sbin';
 
 $TOPDIR = dirname(abs_path($0));
-$SCRIPT = File::Spec->catfile($TOPDIR, 'do-smoke-test.sh');
 
 $OPENNMS_TESTDIR = shift @ARGV;
 $RPMDIR = shift @ARGV;
@@ -96,7 +94,7 @@ drop_database();
 configure_opennms();
 clean_logs();
 start_opennms();
-build_test_api();
+#build_test_api();
 build_smoke_tests();
 run_smoke_tests();
 clean_mozilla_home();
