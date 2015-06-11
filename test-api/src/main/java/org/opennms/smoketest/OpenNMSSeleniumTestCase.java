@@ -236,6 +236,10 @@ public class OpenNMSSeleniumTestCase {
                 }
             } else if (useChrome) {
                 final File chrome = findChrome();
+                final File chromeDriver = findChromeDriver();
+                if (chromeDriver != null) {
+                    System.setProperty("webdriver.chrome.driver", chromeDriver.getAbsolutePath());
+                }
                 if (chrome != null) {
                     final ChromeOptions options = new ChromeOptions();
                     options.setBinary(chrome);
@@ -275,6 +279,37 @@ public class OpenNMSSeleniumTestCase {
                     if (chromeFile.exists() && chromeFile.canExecute()) {
                         return chromeFile;
                     }
+                }
+            }
+        }
+        return null;
+    }
+
+    private File findChromeDriver() {
+        final String os = System.getProperty("os.name").toLowerCase();
+        final String extension = (os.indexOf("win") >= 0)? ".exe" : "";
+
+        final String path = System.getenv("PATH");
+        if (path == null) {
+            LOG.debug("findChromeDriver(): Unable to get PATH.");
+            for (final String searchPath : new String[] { "/usr/lib/chromium-browser/", "/usr/local/bin/", "/usr/bin/" }) {
+                final File chromeDriverFile = new File(searchPath + "chromedriver" + extension);
+                LOG.debug("findChromeDriver(): trying {}", chromeDriverFile);
+                if (chromeDriverFile.exists() && chromeDriverFile.canExecute()) {
+                    return chromeDriverFile;
+                }
+            }
+        } else {
+            final List<String> paths = new ArrayList<String>(Arrays.asList(path.split(File.pathSeparator)));
+            paths.add("/usr/local/bin");
+            paths.add("/usr/local/sbin");
+            paths.add("/usr/lib/chromium-browser");
+            LOG.debug("findChromeDriver(): paths = {}", paths);
+            for (final String directory : paths) {
+                final File chromeDriverFile = new File(directory + File.separator + "chromeDriverdriver" + extension);
+                LOG.debug("findChromeDriver(): trying {}", chromeDriverFile);
+                if (chromeDriverFile.exists() && chromeDriverFile.canExecute()) {
+                    return chromeDriverFile;
                 }
             }
         }
