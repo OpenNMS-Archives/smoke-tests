@@ -70,6 +70,8 @@ import org.openqa.selenium.TakesScreenshot;
 import org.openqa.selenium.TimeoutException;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
+import org.openqa.selenium.chrome.ChromeDriver;
+import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.firefox.FirefoxDriver;
 import org.openqa.selenium.interactions.Actions;
 import org.openqa.selenium.phantomjs.PhantomJSDriver;
@@ -85,6 +87,15 @@ import com.google.common.io.Files;
 import com.thoughtworks.selenium.SeleniumException;
 
 public class OpenNMSSeleniumTestCase {
+    static {
+        final String logLevel = System.getProperty("org.opennms.smoketest.logLevel", "DEBUG");
+        final Logger logger = org.slf4j.LoggerFactory.getLogger(ch.qos.logback.classic.Logger.ROOT_LOGGER_NAME);
+        if (logger instanceof ch.qos.logback.classic.Logger) {
+            final ch.qos.logback.classic.Logger logbackLogger = (ch.qos.logback.classic.Logger) logger;
+            logbackLogger.setLevel(ch.qos.logback.classic.Level.valueOf(logLevel));
+        }
+    }
+
     private static final Logger LOG = LoggerFactory.getLogger(OpenNMSSeleniumTestCase.class);
 
     public static final long   LOAD_TIMEOUT       = Long.getLong("org.opennms.smoketest.web-timeout", 120000l);
@@ -99,6 +110,7 @@ public class OpenNMSSeleniumTestCase {
     public static final String GROUP_NAME         = "SmokeTestGroup";
 
     protected static final boolean usePhantomJS = Boolean.getBoolean("org.opennms.smoketest.webdriver.use-phantomjs") || Boolean.getBoolean("smoketest.usePhantomJS");
+    protected static final boolean useChrome    = Boolean.getBoolean("org.opennms.smoketest.webdriver.use-chrome");
 
     protected WebDriver m_driver = null;
     protected WebDriverWait wait = null;
@@ -206,16 +218,6 @@ public class OpenNMSSeleniumTestCase {
         }
     };
 
-    @BeforeClass
-    public static void configureLogging() throws Exception {
-        final String logLevel = System.getProperty("org.opennms.smoketest.logLevel", "DEBUG");
-        final Logger logger = org.slf4j.LoggerFactory.getLogger(ch.qos.logback.classic.Logger.ROOT_LOGGER_NAME);
-        if (logger instanceof ch.qos.logback.classic.Logger) {
-            final ch.qos.logback.classic.Logger logbackLogger = (ch.qos.logback.classic.Logger) logger;
-            logbackLogger.setLevel(ch.qos.logback.classic.Level.valueOf(logLevel));
-        }
-    }
-
     protected WebDriver getDriver() throws InstantiationException, IllegalAccessException, ClassNotFoundException {
         WebDriver driver = null;
         final String driverClass = System.getProperty("org.opennms.smoketest.webdriver.class", System.getProperty("webdriver.class"));
@@ -232,12 +234,51 @@ public class OpenNMSSeleniumTestCase {
                     caps.setCapability(PhantomJSDriverService.PHANTOMJS_EXECUTABLE_PATH_PROPERTY, phantomJS.toString());
                     driver = new PhantomJSDriver(caps);
                 }
+            } else if (useChrome) {
+                final File chrome = findChrome();
+                if (chrome != null) {
+                    final ChromeOptions options = new ChromeOptions();
+                    options.setBinary(chrome);
+                    final DesiredCapabilities caps = DesiredCapabilities.chrome();
+                    caps.setCapability(ChromeOptions.CAPABILITY, options);
+                    driver = new ChromeDriver(caps);
+                }
             }
             if (driver == null) {
                 driver = new FirefoxDriver();
             }
         }
         return driver;
+    }
+
+    private File findChrome() {
+        final String os = System.getProperty("os.name").toLowerCase();
+        final String extension = (os.indexOf("win") >= 0)? ".exe" : "";
+
+        final String path = System.getenv("PATH");
+        if (path == null) {
+            LOG.debug("findChrome(): Unable to get PATH.");
+            final File chromeFile = new File("/usr/bin/chromium-browser" + extension);
+            LOG.debug("findChrome(): trying {}", chromeFile);
+            if (chromeFile.exists() && chromeFile.canExecute()) {
+                return chromeFile;
+            }
+        } else {
+            final List<String> paths = new ArrayList<String>(Arrays.asList(path.split(File.pathSeparator)));
+            paths.add("/usr/local/bin");
+            paths.add("/usr/local/sbin");
+            LOG.debug("findChrome(): paths = {}", paths);
+            for (final String directory : paths) {
+                for (final String exeName : new String[] { "chromium-browser", "chrome", "google-chrome" }) {
+                    final File chromeFile = new File(directory + File.separator + exeName + extension);
+                    LOG.debug("findChrome(): trying {}", chromeFile);
+                    if (chromeFile.exists() && chromeFile.canExecute()) {
+                        return chromeFile;
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     private File findPhantomJS() {
