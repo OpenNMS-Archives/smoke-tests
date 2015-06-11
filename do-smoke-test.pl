@@ -94,7 +94,7 @@ drop_database();
 configure_opennms();
 clean_logs();
 start_opennms();
-#build_test_api();
+build_test_api();
 build_smoke_tests();
 run_smoke_tests();
 clean_mozilla_home();
