@@ -98,6 +98,16 @@ public class OpenNMSSeleniumTestCase {
 
     private static final Logger LOG = LoggerFactory.getLogger(OpenNMSSeleniumTestCase.class);
 
+    static {
+        final File chromeDriver = findChromeDriver();
+        if (chromeDriver != null) {
+            LOG.debug("Found chrome driver: " + chromeDriver.getAbsolutePath());
+            System.setProperty("webdriver.chrome.driver", chromeDriver.getAbsolutePath());
+        } else {
+            LOG.debug("Did not find chrome driver.");
+        }
+    }
+
     public static final long   LOAD_TIMEOUT       = Long.getLong("org.opennms.smoketest.web-timeout", 120000l);
     public static final String OPENNMS_WEB_HOST   = System.getProperty("org.opennms.smoketest.web-host", "localhost");
     public static final int    OPENNMS_WEB_PORT   = Integer.getInteger("org.opennms.smoketest.web-port", 8980);
@@ -236,10 +246,6 @@ public class OpenNMSSeleniumTestCase {
                 }
             } else if (useChrome) {
                 final File chrome = findChrome();
-                final File chromeDriver = findChromeDriver();
-                if (chromeDriver != null) {
-                    System.setProperty("webdriver.chrome.driver", chromeDriver.getAbsolutePath());
-                }
                 if (chrome != null) {
                     final ChromeOptions options = new ChromeOptions();
                     options.setBinary(chrome);
@@ -255,7 +261,7 @@ public class OpenNMSSeleniumTestCase {
         return driver;
     }
 
-    private File findChrome() {
+    private static File findChrome() {
         final String os = System.getProperty("os.name").toLowerCase();
         final String extension = (os.indexOf("win") >= 0)? ".exe" : "";
 
@@ -285,7 +291,7 @@ public class OpenNMSSeleniumTestCase {
         return null;
     }
 
-    private File findChromeDriver() {
+    private static File findChromeDriver() {
         final String os = System.getProperty("os.name").toLowerCase();
         final String extension = (os.indexOf("win") >= 0)? ".exe" : "";
 
@@ -306,7 +312,7 @@ public class OpenNMSSeleniumTestCase {
             paths.add("/usr/lib/chromium-browser");
             LOG.debug("findChromeDriver(): paths = {}", paths);
             for (final String directory : paths) {
-                final File chromeDriverFile = new File(directory + File.separator + "chromeDriverdriver" + extension);
+                final File chromeDriverFile = new File(directory + File.separator + "chromedriver" + extension);
                 LOG.debug("findChromeDriver(): trying {}", chromeDriverFile);
                 if (chromeDriverFile.exists() && chromeDriverFile.canExecute()) {
                     return chromeDriverFile;
@@ -316,7 +322,7 @@ public class OpenNMSSeleniumTestCase {
         return null;
     }
 
-    private File findPhantomJS() {
+    private static File findPhantomJS() {
         final String os = System.getProperty("os.name").toLowerCase();
         final String extension = (os.indexOf("win") >= 0)? ".exe" : "";
 
