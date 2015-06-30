@@ -320,6 +320,22 @@ sub install_opennms {
 	system('yum', '-y', 'install', @files) == 0 or fail(1, "Unable to install packages from $RPMDIR");
 
 	closedir(DIR) or fail(1, "Failed to close $RPMDIR: $!");
+
+	my $opennms_rrdtool = File::Spec->catfile($OPENNMS_HOME, 'bin', 'opennms-rrdtool');
+	if (! -e $opennms_rrdtool) {
+		my $rrdtool=`which rrdtool 2>/dev/null`;
+		chomp($rrdtool);
+		if (-x $rrdtool) {
+			my $rrd_version = `$rrdtool --version`;
+			if ($rrd_version =~ /RRDtool 1\.[56789]/) {
+				symlink($rrdtool, $opennms_rrdtool);
+			} else {
+				fail(1, "${opennms_rrdtool} does not exist, and ${rrdtool} is not version 1.5 or higher.");
+			}
+		} else {
+			fail(1, "${opennms_rrdtool} does not exist, and ${rrdtool} is missing.");
+		}
+	}
 }
 
 sub configure_opennms {
