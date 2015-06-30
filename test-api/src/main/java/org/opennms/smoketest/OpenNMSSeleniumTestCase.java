@@ -39,6 +39,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
 import org.apache.http.auth.AuthScope;
@@ -49,15 +50,17 @@ import org.apache.http.client.CredentialsProvider;
 import org.apache.http.client.ResponseHandler;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.client.protocol.HttpClientContext;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.auth.BasicScheme;
 import org.apache.http.impl.client.BasicAuthCache;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
-import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.rules.TestWatcher;
 import org.junit.runner.Description;
@@ -114,6 +117,9 @@ public class OpenNMSSeleniumTestCase {
     public static final String OPENNMS_EVENT_HOST = System.getProperty("org.opennms.smoketest.event-host", OPENNMS_WEB_HOST);
     public static final int    OPENNMS_EVENT_PORT = Integer.getInteger("org.opennms.smoketest.event-port", 5817);
 
+    public static final String BASIC_AUTH_USERNAME = "admin";
+    public static final String BASIC_AUTH_PASSWORD = "admin";
+
     public static final String BASE_URL           = "http://" + OPENNMS_WEB_HOST + ":" + OPENNMS_WEB_PORT + "/";
     public static final String REQUISITION_NAME   = "SeleniumTestGroup";
     public static final String USER_NAME          = "SmokeTestUser";
@@ -142,8 +148,8 @@ public class OpenNMSSeleniumTestCase {
                 wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("j_password")));
                 wait.until(ExpectedConditions.elementToBeClickable(By.name("Login")));
 
-                enterText(By.name("j_username"), "admin");
-                enterText(By.name("j_password"), "admin");
+                enterText(By.name("j_username"), BASIC_AUTH_USERNAME);
+                enterText(By.name("j_password"), BASIC_AUTH_PASSWORD);
                 findElementByName("Login").click();
 
                 wait.until(ExpectedConditions.visibilityOfElementLocated(By.xpath("//div[@id='content']")));
@@ -533,13 +539,13 @@ public class OpenNMSSeleniumTestCase {
         return element;
     }
 
-    private Integer doRequest(final HttpRequestBase request) throws ClientProtocolException, IOException, InterruptedException {
+    protected Integer doRequest(final HttpRequestBase request) throws ClientProtocolException, IOException, InterruptedException {
         final CountDownLatch waitForCompletion = new CountDownLatch(1);
 
         final URI uri = request.getURI();
         final HttpHost targetHost = new HttpHost(uri.getHost(), uri.getPort(), uri.getScheme());
         CredentialsProvider credsProvider = new BasicCredentialsProvider();
-        credsProvider.setCredentials(new AuthScope(targetHost.getHostName(), targetHost.getPort()), new UsernamePasswordCredentials("admin", "admin"));
+        credsProvider.setCredentials(new AuthScope(targetHost.getHostName(), targetHost.getPort()), new UsernamePasswordCredentials(BASIC_AUTH_USERNAME, BASIC_AUTH_PASSWORD));
         AuthCache authCache = new BasicAuthCache();
         // Generate BASIC scheme object and add it to the local auth cache
         BasicScheme basicAuth = new BasicScheme();
@@ -560,7 +566,12 @@ public class OpenNMSSeleniumTestCase {
                     // 400 because we return that if you try to delete something that is already deleted
                     // 404 because it's OK if it's already not there
                     if (status >= 200 && status < 300 || status == 400 || status == 404) {
-                        EntityUtils.consume(response.getEntity());
+                        final HttpEntity entity = response.getEntity();
+                        if (entity != null) {
+                            final String responseText = EntityUtils.toString(entity);
+                            System.err.println("doRequest: response = " + responseText);
+                            EntityUtils.consume(entity);
+                        }
                         return status;
                     } else {
                         throw new ClientProtocolException("Unexpected response status: " + status);
@@ -697,6 +708,23 @@ public class OpenNMSSeleniumTestCase {
         }
         LOG.debug("0 database nodes found.");
         return 0;
+    }
+
+    protected void sendPost(final String urlFragment, final String body) throws ClientProtocolException, IOException, InterruptedException {
+        final HttpPost post = new HttpPost(BASE_URL + "opennms" + (urlFragment.startsWith("/")? urlFragment : "/"+urlFragment));
+        post.setEntity(new StringEntity(body, ContentType.APPLICATION_XML));
+        final Integer response = doRequest(post);
+        if (response != 303 && response != 200) {
+            throw new RuntimeException("Bad response code! (" + response + ")");
+        }
+    }
+
+    protected void sendDelete(final String urlFragment) throws ClientProtocolException, IOException, InterruptedException {
+        final HttpDelete del = new HttpDelete(BASE_URL + "opennms" + (urlFragment.startsWith("/")? urlFragment : "/"+urlFragment));
+        final Integer response = doRequest(del);
+        if (response != 303 && response != 200) {
+            throw new RuntimeException("Bad response code! (" + response + ")");
+        }
     }
 
     protected final class WaitForNodesInDatabase implements ExpectedCondition<Boolean> {
