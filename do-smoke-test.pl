@@ -266,14 +266,14 @@ sub build_test_api {
 	print "- building the OpenNMS smoke test API:\n";
 
 	chdir(File::Spec->catdir($TOPDIR, 'test-api'));
-	system(File::Spec->catfile($OPENNMS_TESTDIR, 'compile.pl'), 'install') == 0 or fail(1, "failed to build smoke test API: $!");
+	system(File::Spec->catfile($OPENNMS_TESTDIR, 'compile.pl'), '-Dmaven.test.skip.exec=true', 'install') == 0 or fail(1, "failed to build smoke test API: $!");
 }
 
 sub build_smoke_tests {
 	print "- building OpenNMS smoke tests:\n";
 
 	chdir($OPENNMS_TESTDIR);
-	system("./compile.pl", "-Dsmoke=true", "--also-make", "--projects", "org.opennms:smoke-test", "install") == 0 or fail(1, "failed to compile smoke tests: $!");
+	system("./compile.pl", "-Dsmoke=true", "-Dmaven.test.skip.exec=true", "--also-make", "--projects", "org.opennms:smoke-test", "install") == 0 or fail(1, "failed to compile smoke tests: $!");
 }
 
 sub run_smoke_tests {
