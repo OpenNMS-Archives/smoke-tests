@@ -171,6 +171,9 @@ public class OpenNMSSeleniumTestCase {
                 LOG.debug("Failed to get driver", e);
                 throw new RuntimeException("Tests aren't going to work.  Bailing.");
             }
+
+            // make sure everything's in a good state if possible
+            cleanUp();
         }
 
         @Override
@@ -204,13 +207,7 @@ public class OpenNMSSeleniumTestCase {
 
         @Override
         protected void finished(final Description description) {
-            try {
-                deleteTestRequisition();
-                deleteTestUser();
-                deleteTestGroup();
-            } catch (final Exception e) {
-                LOG.error("Cleaning up failed. Future tests will be in an unhandled state.", e);
-            }
+            cleanUp();
 
             LOG.debug("Shutting down Selenium.");
             if (m_driver != null) {
@@ -230,6 +227,16 @@ public class OpenNMSSeleniumTestCase {
             try {
                 Thread.sleep(3000);
             } catch (final InterruptedException e) {
+            }
+        }
+
+        protected void cleanUp() {
+            try {
+                deleteTestRequisition();
+                deleteTestUser();
+                deleteTestGroup();
+            } catch (final Exception e) {
+                LOG.error("Cleaning up failed. Future tests will be in an unhandled state.", e);
             }
         }
     };
