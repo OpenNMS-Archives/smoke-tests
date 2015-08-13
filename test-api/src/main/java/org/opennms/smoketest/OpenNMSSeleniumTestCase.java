@@ -426,7 +426,7 @@ public class OpenNMSSeleniumTestCase {
             if (submenuItemHref == null) {
                 submenuElement = findElementByXpath("//a[contains(text(), '" + submenuItemText + "')]");
             } else {
-                submenuElement = findElementByXpath("//a[@href='" + submenuItemHref + "' and contains(text(), '" + submenuItemText + "')]");
+                submenuElement = findElementByXpath("//a[contains(@href, '" + submenuItemHref + "') and contains(text(), '" + submenuItemText + "')]");
             }
         } else {
             submenuElement = null;
