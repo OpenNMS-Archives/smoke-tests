@@ -254,6 +254,7 @@ public class OpenNMSSeleniumTestCase {
                 final File phantomJS = findPhantomJS();
                 if (phantomJS != null) {
                     final DesiredCapabilities caps = new DesiredCapabilities();
+                    customizeCapabilities(caps);
                     caps.setCapability(PhantomJSDriverService.PHANTOMJS_EXECUTABLE_PATH_PROPERTY, phantomJS.toString());
                     driver = new PhantomJSDriver(caps);
                 }
@@ -263,15 +264,24 @@ public class OpenNMSSeleniumTestCase {
                     final ChromeOptions options = new ChromeOptions();
                     options.setBinary(chrome);
                     final DesiredCapabilities caps = DesiredCapabilities.chrome();
+                    customizeCapabilities(caps);
                     caps.setCapability(ChromeOptions.CAPABILITY, options);
                     driver = new ChromeDriver(caps);
                 }
             }
-            if (driver == null) {
-                driver = new FirefoxDriver();
+            if (driver == null) { // fallback to firefox
+                final DesiredCapabilities caps = DesiredCapabilities.firefox();
+                customizeCapabilities(caps);
+                driver = new FirefoxDriver(caps);
             }
         }
         return driver;
+    }
+
+    // Hook to customize the behaviour of the Webdriver, as tests might need this functionality
+    // and it is not possible to change the capabilities AFTER the webdriver was created.
+    protected void customizeCapabilities(DesiredCapabilities caps) {
+
     }
 
     private static File findChrome() {
