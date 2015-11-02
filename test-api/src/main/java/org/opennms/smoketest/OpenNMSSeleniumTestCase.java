@@ -606,6 +606,7 @@ public class OpenNMSSeleniumTestCase {
         return status;
     }
 
+    @Deprecated
     public void deleteExistingRequisition(final String foreignSource) {
         provisioningPage();
 
@@ -659,6 +660,7 @@ public class OpenNMSSeleniumTestCase {
         } while (getForeignSourceElement(foreignSource) != null);
     }
 
+    @Deprecated
     protected WebElement getForeignSourceElement(final String requisitionName) {
         final String selector = "//span[@data-foreignSource='" + requisitionName + "']";
         WebElement foreignSourceElement = null;
@@ -675,6 +677,7 @@ public class OpenNMSSeleniumTestCase {
         return foreignSourceElement;
     }
 
+    @Deprecated
     protected void deleteTestRequisition() throws Exception {
         final Integer responseCode = doRequest(new HttpGet(BASE_URL + "/opennms/rest/requisitions/" + REQUISITION_NAME));
         LOG.debug("Checking for existing test requisition: {}", responseCode);
@@ -697,6 +700,7 @@ public class OpenNMSSeleniumTestCase {
         doRequest(new HttpDelete(BASE_URL + "/opennms/rest/groups/" + GROUP_NAME));
     }
 
+    @Deprecated
     protected long getNodesInRequisition(final WebElement element) {
         try {
             final WebElement match = element.findElement(By.xpath("//span[@data-requisitionedNodes]"));
@@ -712,6 +716,7 @@ public class OpenNMSSeleniumTestCase {
         return 0;
     }
 
+    @Deprecated
     protected long getNodesInDatabase(final WebElement element) {
         try {
             final WebElement match = element.findElement(By.xpath("//span[@data-databaseNodes]"));
@@ -744,6 +749,7 @@ public class OpenNMSSeleniumTestCase {
         }
     }
 
+    @Deprecated
     protected final class WaitForNodesInDatabase implements ExpectedCondition<Boolean> {
         private final int m_numberToMatch;
         public WaitForNodesInDatabase(int numberOfNodes) {
