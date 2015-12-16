@@ -119,10 +119,15 @@ sub fail {
 	}
 
 	if (defined $OPENNMS_HOME and -d $OPENNMS_HOME) {
-		my $sourcedir = File::Spec->catdir($OPENNMS_HOME, 'logs');
 		my $targetdir = File::Spec->catdir($OPENNMS_TESTDIR, 'target', 'opennms-logs');
 		mkpath($targetdir);
+
+		my $sourcedir = File::Spec->catdir($OPENNMS_HOME, 'logs');
 		system('rsync', '-ar', $sourcedir . '/', $targetdir . '/');
+
+		$sourcedir = File::Spec->catdir($OPENNMS_HOME, 'data', 'log');
+		system('rsync', '-ar', $sourcedir . '/', $targetdir . '/');
+
 		for my $logfile ('manager.log', 'output.log') {
 			my $file = File::Spec->catfile($OPENNMS_HOME, 'logs', $logfile);
 			if (! -e $file) {
