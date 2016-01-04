@@ -559,24 +559,25 @@ public class OpenNMSSeleniumTestCase {
     protected void clickId(final String id) throws InterruptedException {
         WebElement element = null;
         try {
-            m_driver.manage().timeouts().implicitlyWait(0, TimeUnit.MILLISECONDS);
+            m_driver.manage().timeouts().implicitlyWait(10, TimeUnit.MILLISECONDS);
 
             try {
                 element = findElementById(id);
             } catch (final Throwable t) {
+                LOG.warn("Failed to locate id=" + id, t);
             }
 
-            final long waitUntil = System.currentTimeMillis() + 120000;
+            final long waitUntil = System.currentTimeMillis() + 60000;
             while (element == null || element.getAttribute("disabled") != null || !element.isDisplayed() || !element.isEnabled()) {
                 if (System.currentTimeMillis() >= waitUntil) {
                     break;
                 }
                 try {
-                    Thread.sleep(1000);
                     m_driver.navigate().refresh();
-                    Thread.sleep(1000);
+                    Thread.sleep(2000);
                     element = findElementById(id);
                 } catch (final Throwable t) {
+                    LOG.warn("Failed to locate id=" + id, t);
                 }
             }
             Thread.sleep(1000);
