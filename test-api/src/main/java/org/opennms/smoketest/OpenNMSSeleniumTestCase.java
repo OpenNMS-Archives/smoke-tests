@@ -556,6 +556,36 @@ public class OpenNMSSeleniumTestCase {
         return element;
     }
 
+    protected void clickId(final String id) throws InterruptedException {
+        WebElement element = null;
+        try {
+            m_driver.manage().timeouts().implicitlyWait(0, TimeUnit.MILLISECONDS);
+
+            try {
+                element = findElementById(id);
+            } catch (final Throwable t) {
+            }
+
+            final long waitUntil = System.currentTimeMillis() + 120000;
+            while (element == null || element.getAttribute("disabled") != null || !element.isDisplayed() || !element.isEnabled()) {
+                if (System.currentTimeMillis() >= waitUntil) {
+                    break;
+                }
+                try {
+                    Thread.sleep(1000);
+                    m_driver.navigate().refresh();
+                    Thread.sleep(1000);
+                    element = findElementById(id);
+                } catch (final Throwable t) {
+                }
+            }
+            Thread.sleep(1000);
+            element.click();
+        } finally {
+            m_driver.manage().timeouts().implicitlyWait(LOAD_TIMEOUT, TimeUnit.MILLISECONDS);
+        }
+    }
+
     protected Integer doRequest(final HttpRequestBase request) throws ClientProtocolException, IOException, InterruptedException {
         final CountDownLatch waitForCompletion = new CountDownLatch(1);
 
