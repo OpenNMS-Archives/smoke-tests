@@ -9,7 +9,7 @@
 
   <properties>
     <opennmsVersion>16.0.0</opennmsVersion>
-    <seleniumVersion>2.48.2</seleniumVersion>
+    <seleniumVersion>2.52.0</seleniumVersion>
 
     <junitVersion>4.12</junitVersion>
     <logbackVersion>1.1.3</logbackVersion>
