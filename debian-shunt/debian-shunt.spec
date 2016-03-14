@@ -4,7 +4,7 @@
 Name:			debian-shunt
 Summary:		Placeholder package to make RPM on debian happy
 Version:		1.0
-Release:		5
+Release:		6
 License:		Public Domain
 Group:			Development/Tools
 BuildArch:		noarch
@@ -24,6 +24,9 @@ Provides: jre-1.8.0
 Provides: opennms-rrdtool = 1.4.7
 Provides: rrdtool = 1.5.3
 Provides: rrdtool-devel = 1.5.3
+Provides: util-linux = 2.23.2
+Provides: openssh = 6.6.1p1
+Provides: openssh-clients = 6.6.1p1
 
 %description
 This is a placeholder wrapper package to provide the dependencies necessary
