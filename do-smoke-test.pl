@@ -321,12 +321,12 @@ sub install_opennms {
 	opendir(DIR, $RPMDIR) or fail(1, "Failed to open $RPMDIR for reading: $!");
 
 	my @files = map { File::Spec->catfile($RPMDIR, $_) } grep { /\.rpm$/ } readdir(DIR);
-	my @corefile = grep { /opennms-core-/ } @files;
+	my @corefile = grep { /(opennms|meridian)-core-/ } @files;
 	if (@corefile != 1) {
-		fail(1, "More than one opennms-core RPM found!  Something went wrong setting up the smoke test directory.\nRPMS:\n* " . join("\n* ", @files) . "\n");
+		fail(1, "More than one *-core RPM found!  Something went wrong setting up the smoke test directory.\nRPMS:\n* " . join("\n* ", @files) . "\n");
 	}
 
-	my ($version) = $corefile[0] =~ /opennms-core-(.+?)\.noarch\.rpm/;
+	my ($version) = $corefile[0] =~ /-core-(.+?)\.noarch\.rpm/;
 	@files = grep { index($_, $version) >= 0 } @files;
 
 	print "- Installing the following packages (version $version):\n";
