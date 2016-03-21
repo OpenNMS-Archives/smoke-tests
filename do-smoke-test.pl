@@ -294,7 +294,12 @@ sub run_smoke_tests {
 
 sub remove_opennms {
 	print "- Removing 'opennms-core' and 'meridian-core':\n";
-	system('yum', '-y', 'remove', 'opennms-core', 'opennms-source', 'meridian-core', 'meridian-source', 'opennms-remote-poller', 'meridian-remote-poller', 'opennms-minion-core', 'meridian-minion-core') == 0 or fail(1, "Unable to remove Horizon and Meridian.");
+	my @remove = qw(yum -y remove);
+	for my $package (qw(core source remote-poller minion-core minion-features minion-container)) {
+		push(@remove, 'opennms-' . $package);
+		push(@remove, 'meridian-' . $package);
+	}
+	system(@remove) == 0 or fail(1, "Unable to remove Horizon and Meridian packages.");
 
 	my @packages = grep { /(opennms|meridian)/ && !/^opennms-repo-/ } get_installed_packages();
 	if (@packages > 0) {
