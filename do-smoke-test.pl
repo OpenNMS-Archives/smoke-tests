@@ -315,6 +315,9 @@ sub clean_mozilla_home {
 	if (-d $mozilla_home) {
 		rmtree($mozilla_home);
 	}
+	if (-d '/root/.mozilla') {
+		rmtree('/root/.mozilla');
+	}
 }
 
 sub install_opennms {
