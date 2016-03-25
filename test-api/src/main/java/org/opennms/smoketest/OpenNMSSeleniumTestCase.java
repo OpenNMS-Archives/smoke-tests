@@ -141,6 +141,8 @@ public class OpenNMSSeleniumTestCase {
                 m_driver = getDriver();
                 LOG.debug("Using driver: {}", m_driver);
                 m_driver.manage().timeouts().implicitlyWait(LOAD_TIMEOUT, TimeUnit.MILLISECONDS);
+                m_driver.manage().window().setPosition(new Point(0,0));
+                m_driver.manage().window().setSize(new Dimension(2048, 10000));
                 wait = new WebDriverWait(m_driver, TimeUnit.SECONDS.convert(LOAD_TIMEOUT, TimeUnit.MILLISECONDS));
 
                 m_driver.get(BASE_URL + "opennms/login.jsp");
@@ -546,7 +548,7 @@ public class OpenNMSSeleniumTestCase {
         }
 
         // Focus on the element before typing
-        new Actions(driver).moveToElement(element).click().perform();
+        new Actions(driver).moveToElement(element).moveByOffset(0, -65).click().perform();
         // Again, focus on the element before typing
         element.sendKeys("");
         // Send the keys
