@@ -24,6 +24,7 @@ use OpenNMS::Release 2.9.12;
 
 use vars qw(
 	$OPENNMS_HOME
+	$MINION_HOME
 
 	$TOPDIR
 	$OPENNMS_TESTDIR
