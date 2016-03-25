@@ -66,9 +66,11 @@ import org.junit.rules.TestWatcher;
 import org.junit.runner.Description;
 import org.openqa.selenium.Alert;
 import org.openqa.selenium.By;
+import org.openqa.selenium.Dimension;
 import org.openqa.selenium.NoAlertPresentException;
 import org.openqa.selenium.NoSuchElementException;
 import org.openqa.selenium.OutputType;
+import org.openqa.selenium.Point;
 import org.openqa.selenium.TakesScreenshot;
 import org.openqa.selenium.TimeoutException;
 import org.openqa.selenium.WebDriver;
@@ -764,11 +766,21 @@ public class OpenNMSSeleniumTestCase {
     }
 
     protected void sendPost(final String urlFragment, final String body) throws ClientProtocolException, IOException, InterruptedException {
+        sendPost(urlFragment, body, null);
+    }
+
+    protected void sendPost(final String urlFragment, final String body, final Integer expectedResponse) throws ClientProtocolException, IOException, InterruptedException {
         final HttpPost post = new HttpPost(BASE_URL + "opennms" + (urlFragment.startsWith("/")? urlFragment : "/"+urlFragment));
         post.setEntity(new StringEntity(body, ContentType.APPLICATION_XML));
         final Integer response = doRequest(post);
-        if (response != 303 && response != 200 && response != 201) {
-            throw new RuntimeException("Bad response code! (" + response + ")");
+        if (expectedResponse == null) {
+            if (response != 303 && response != 200 && response != 201) {
+                throw new RuntimeException("Bad response code! (" + response + "; expected 200, 201, or 303)");
+            }
+        } else {
+            if (response != expectedResponse) {
+                throw new RuntimeException("Bad response code! (" + response + "; expected " + expectedResponse + ")");
+            }
         }
     }
 
