@@ -767,7 +767,7 @@ public class OpenNMSSeleniumTestCase {
         final HttpPost post = new HttpPost(BASE_URL + "opennms" + (urlFragment.startsWith("/")? urlFragment : "/"+urlFragment));
         post.setEntity(new StringEntity(body, ContentType.APPLICATION_XML));
         final Integer response = doRequest(post);
-        if (response != 303 && response != 200) {
+        if (response != 303 && response != 200 && response != 201) {
             throw new RuntimeException("Bad response code! (" + response + ")");
         }
     }
