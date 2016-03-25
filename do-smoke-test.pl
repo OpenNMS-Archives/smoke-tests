@@ -59,6 +59,12 @@ if (not defined $OPENNMS_HOME or not -d $OPENNMS_HOME) {
 }
 $ENV{'OPENNMS_HOME'} = $OPENNMS_HOME;
 
+$MINION_HOME = $ENV{'MINION_HOME'};
+if (not defined $MINION_HOME or not -d $MINION_HOME) {
+	$MINION_HOME='/opt/minion';
+}
+$ENV{'MINION_HOME'} = $MINION_HOME;
+
 if (not defined $OPENNMS_TESTDIR or not -d $OPENNMS_TESTDIR) {
 	print STDERR "ERROR: You must specify a valid OpenNMS source directory and a valid OpenNMS RPM directory!\n";
 	usage();
@@ -308,7 +314,7 @@ sub remove_opennms {
 	} else {
 		print "- There are no other existing OpenNMS packages to remove.\n";
 	}
-	for my $dir ($OPENNMS_HOME, '/usr/lib/opennms', '/usr/share/opennms', '/var/lib/opennms', '/var/log/opennms', '/var/opennms') {
+	for my $dir ($OPENNMS_HOME, $MINION_HOME, '/usr/lib/opennms', '/usr/share/opennms', '/var/lib/opennms', '/var/log/opennms', '/var/opennms') {
 		if (-e $dir) {
 			rmtree($dir) or fail(1, "Failed to remove $dir: $!");
 		}
