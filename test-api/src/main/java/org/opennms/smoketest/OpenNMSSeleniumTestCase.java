@@ -548,7 +548,8 @@ public class OpenNMSSeleniumTestCase {
         }
 
         // Focus on the element before typing
-        new Actions(driver).moveToElement(element).moveByOffset(0, -65).click().perform();
+        new Actions(driver).moveToElement(element).moveByOffset(0, -65).perform();
+        element.click();
         // Again, focus on the element before typing
         element.sendKeys("");
         // Send the keys
