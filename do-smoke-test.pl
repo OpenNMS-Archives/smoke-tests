@@ -244,6 +244,7 @@ sub start_opennms {
 	my $timeout = 300;
 
 	if (-x '/bin/systemctl') {
+		system("systemctl", "daemon-reload") == 0 or fail(1, "Unable to reload systemctl daemons: $!");
 		system("systemctl", "start", "opennms") == 0 or fail(1, "Unable to start OpenNMS: $!");
 	} elsif (-x '/usr/sbin/service' or -x '/sbin/service') {
 		system("service", "opennms", "start") == 0 or fail(1, "Unable to start OpenNMS: $!");
