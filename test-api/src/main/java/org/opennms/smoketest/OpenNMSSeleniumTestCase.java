@@ -781,7 +781,7 @@ public class OpenNMSSeleniumTestCase {
                 throw new RuntimeException("Bad response code! (" + response + "; expected 200, 201, or 303)");
             }
         } else {
-            if (response != expectedResponse) {
+            if (!response.equals(expectedResponse)) {
                 throw new RuntimeException("Bad response code! (" + response + "; expected " + expectedResponse + ")");
             }
         }
