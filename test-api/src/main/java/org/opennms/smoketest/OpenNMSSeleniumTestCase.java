@@ -73,6 +73,7 @@ import org.junit.runner.Description;
 import org.openqa.selenium.Alert;
 import org.openqa.selenium.By;
 import org.openqa.selenium.Dimension;
+import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.NoAlertPresentException;
 import org.openqa.selenium.NoSuchElementException;
 import org.openqa.selenium.OutputType;
@@ -545,7 +546,7 @@ public class OpenNMSSeleniumTestCase {
      * @see https://code.google.com/p/selenium/issues/detail?id=2487
      * @see https://code.google.com/p/selenium/issues/detail?id=8180
      */
-    protected static WebElement enterText(WebDriver driver, final By selector, final String text) {
+    protected static WebElement enterText(final WebDriver driver, final By selector, final String text) {
         LOG.debug("Enter text: '{}' into selector: {}", text, selector);
         final WebElement element = driver.findElement(selector);
 
@@ -559,7 +560,7 @@ public class OpenNMSSeleniumTestCase {
         }
 
         // Focus on the element before typing
-        new Actions(driver).moveToElement(element).moveByOffset(0, -65).perform();
+        scrollToElement(driver, element);
         element.click();
         // Again, focus on the element before typing
         element.sendKeys("");
@@ -570,6 +571,26 @@ public class OpenNMSSeleniumTestCase {
             try { Thread.sleep(200); } catch (InterruptedException e) {}
         }
         return element;
+    }
+
+    protected static void scrollToElement(final WebDriver driver, final WebElement element) {
+        final List<Integer> bounds = getBoundedRectangleOfElement(driver, element);
+        final int windowHeight = driver.manage().window().getSize().getHeight();
+        final JavascriptExecutor je = (JavascriptExecutor)driver;
+        je.executeScript("window.scrollTo(0, " + (bounds.get(1) - (windowHeight/2)) + ");");
+    }
+
+    @SuppressWarnings("unchecked")
+    protected static List<Integer> getBoundedRectangleOfElement(final WebDriver driver, final WebElement we) {
+        final JavascriptExecutor je = (JavascriptExecutor)driver;
+        final List<String> bounds = (ArrayList<String>) je.executeScript(
+                "var rect = arguments[0].getBoundingClientRect();" +
+                "return [ '' + parseInt(rect.left), '' + parseInt(rect.top), '' + parseInt(rect.width), '' + parseInt(rect.height) ]", we);
+        final List<Integer> ret = new ArrayList<>();
+        for (final String entry : bounds) {
+            ret.add(Integer.valueOf(entry));
+        }
+        return ret;
     }
 
     protected void clickId(final String id) throws InterruptedException {
