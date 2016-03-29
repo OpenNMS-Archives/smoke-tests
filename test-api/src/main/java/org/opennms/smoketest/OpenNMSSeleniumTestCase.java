@@ -32,12 +32,17 @@ import static org.junit.Assert.fail;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.StringReader;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
@@ -51,6 +56,7 @@ import org.apache.http.client.ResponseHandler;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.entity.ContentType;
@@ -87,6 +93,11 @@ import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+import org.xml.sax.InputSource;
 
 import com.google.common.io.Files;
 import com.thoughtworks.selenium.SeleniumException;
@@ -593,6 +604,10 @@ public class OpenNMSSeleniumTestCase {
     }
 
     protected Integer doRequest(final HttpRequestBase request) throws ClientProtocolException, IOException, InterruptedException {
+        return getRequest(request).getStatus();
+    }
+
+    protected ResponseData getRequest(final HttpRequestBase request) throws ClientProtocolException, IOException, InterruptedException {
         final CountDownLatch waitForCompletion = new CountDownLatch(1);
 
         final URI uri = request.getURI();
@@ -611,21 +626,23 @@ public class OpenNMSSeleniumTestCase {
 
         final CloseableHttpClient client = HttpClients.createDefault();
 
-        final ResponseHandler<Integer> responseHandler = new ResponseHandler<Integer>() {
+        final ResponseHandler<ResponseData> responseHandler = new ResponseHandler<ResponseData>() {
             @Override
-            public Integer handleResponse(final HttpResponse response) throws ClientProtocolException, IOException {
+            public ResponseData handleResponse(final HttpResponse response) throws ClientProtocolException, IOException {
                 try {
                     final int status = response.getStatusLine().getStatusCode();
-                    // 400 because we return that if you try to delete something that is already deleted
+                    String responseText = null;
+                    // 400 because we return that if you try to delete
+                    // something that is already deleted
                     // 404 because it's OK if it's already not there
                     if (status >= 200 && status < 300 || status == 400 || status == 404) {
                         final HttpEntity entity = response.getEntity();
                         if (entity != null) {
-                            final String responseText = EntityUtils.toString(entity);
-                            System.err.println("doRequest: response = " + responseText);
+                            responseText = EntityUtils.toString(entity);
                             EntityUtils.consume(entity);
                         }
-                        return status;
+                        final ResponseData r = new ResponseData(status, responseText);
+                        return r;
                     } else {
                         throw new ClientProtocolException("Unexpected response status: " + status);
                     }
@@ -635,65 +652,77 @@ public class OpenNMSSeleniumTestCase {
             }
         };
 
-        final Integer status = client.execute(targetHost, request, responseHandler, context);
+        final ResponseData result = client.execute(targetHost, request, responseHandler, context);
 
         waitForCompletion.await();
         client.close();
-        return status;
+        return result;
     }
 
-    @Deprecated
-    public void deleteExistingRequisition(final String foreignSource) {
-        provisioningPage();
+    public long getNodesInDatabase(final String foreignSource) {
+        try {
+            final HttpGet request = new HttpGet(BASE_URL + "opennms/rest/nodes?foreignSource=" + URLEncoder.encode(foreignSource, "UTF-8"));
+            final ResponseData rd = getRequest(request);
 
-        LOG.debug("deleteExistingRequisition: Deleting Requisition: {}", foreignSource);
-        if (getForeignSourceElement(foreignSource) == null) {
-            LOG.debug("deleteExistingRequisition: Requisition {} is already gone.", foreignSource);
-            return;
+            final DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            final DocumentBuilder builder = factory.newDocumentBuilder();
+            final Document document = builder.parse(new InputSource(new StringReader(rd.getResponseText())));
+            final Element rootElement = document.getDocumentElement();
+            return Long.valueOf(rootElement.getAttribute("totalCount"), 10);
+        } catch (final Exception e) {
+            throw new OpenNMSTestException(e);
         }
+    }
+
+    public boolean requisitionExists(final String foreignSource) {
+        try {
+            final String foreignSourceUrlFragment = URLEncoder.encode(foreignSource, "UTF-8");
+            final Integer status = doRequest(new HttpGet(BASE_URL + "opennms/rest/requisitions/" + foreignSourceUrlFragment));
+            return status == 200;
+        } catch (final IOException | InterruptedException e) {
+            throw new OpenNMSTestException(e);
+        }
+    }
+
+    public void deleteExistingRequisition(final String foreignSource) {
+        LOG.debug("deleteExistingRequisition: Deleting Requisition: {}", foreignSource);
 
         do {
             long nodesInRequisition = -1;
             long nodesInDatabase = -1;
 
             try {
-                m_driver.manage().timeouts().implicitlyWait(1, TimeUnit.SECONDS);
-
-                final WebElement foreignSourceElement = getForeignSourceElement(foreignSource);
-
-                nodesInRequisition = getNodesInRequisition(foreignSourceElement);
-                nodesInDatabase = getNodesInDatabase(foreignSourceElement);
+                nodesInRequisition = getNodesInRequisition(foreignSource);
+                nodesInDatabase = getNodesInDatabase(foreignSource);
 
                 LOG.debug("deleteExistingRequisition: nodesInRequisition={}, nodesInDatabase={}", nodesInRequisition, nodesInDatabase);
 
+                final String emptyRequisition = "<model-import xmlns=\"http://xmlns.opennms.org/xsd/config/model-import\" date-stamp=\"2013-03-29T11:36:55.901-04:00\" foreign-source=\"" + foreignSource + "\" last-import=\"2016-03-29T10:40:23.947-04:00\"></model-import>";
+                final String foreignSourceUrlFragment = URLEncoder.encode(foreignSource, "UTF-8");
+
                 if (nodesInDatabase > 0) {
-                    if (nodesInRequisition > 0) {
-                        LOG.debug("deleteExistingRequisition: We have requisitioned nodes, deleting them.");
-                        try {
-                            final WebElement deleteNodesButton = foreignSourceElement.findElement(By.xpath("//input[@type='button' and @value='Delete Nodes']"));
-                            deleteNodesButton.click();
-                            wait.until(ExpectedConditions.alertIsPresent()).accept();
-                        } catch (final NoSuchElementException e) {
-                        }
-                    } else {
-                        LOG.debug("deleteExistingRequisition: We have no requisitioned nodes, but there are nodes in the database. Synchronizing.");
-                        final WebElement synchronizeButton = foreignSourceElement.findElement(By.xpath("//input[@type='button' and @value='Synchronize']"));
-                        synchronizeButton.click();
-                        wait.until(new WaitForNodesInDatabase(0));
+                    LOG.debug("deleteExistingRequisition: There are nodes in the database. Synchronizing empty requisition.");
+
+                    sendPost("/rest/requisitions", emptyRequisition);
+                    wait.until(new WaitForNodesInRequisition(0));
+
+                    final HttpPut request = new HttpPut(BASE_URL + "opennms/rest/requisitions/" + foreignSourceUrlFragment + "/import");
+                    final Integer status = doRequest(request);
+                    if (status < 200 || status >= 400) {
+                        throw new OpenNMSTestException("Unknown status: " + status);
                     }
-                } else {
-                    // no nodes in the database
-                    try {
-                        LOG.debug("deleteExistingRequisition: We have no nodes in the database, time to delete the requisition. PUSH THE BUTTON FRANK.");
-                        final WebElement deleteRequisitionButton = foreignSourceElement.findElement(By.xpath("//input[@type='button' and @value='Delete Requisition']"));
-                        deleteRequisitionButton.click();
-                    } catch (final NoSuchElementException e) {
-                    }
+                    wait.until(new WaitForNodesInDatabase(0));
                 }
-            } finally {
-                m_driver.manage().timeouts().implicitlyWait(LOAD_TIMEOUT, TimeUnit.MILLISECONDS);
+
+                if (requisitionExists(foreignSource)) {
+                    // make sure the requisition is deleted
+                    sendDelete("/rest/requisitions/" + foreignSourceUrlFragment);
+                    sendDelete("/rest/requisitions/deployed/" + foreignSourceUrlFragment);
+                }
+            } catch (final IOException | InterruptedException e1) {
+                throw new OpenNMSTestException(e1);
             }
-        } while (getForeignSourceElement(foreignSource) != null);
+        } while (requisitionExists(foreignSource));
     }
 
     @Deprecated
@@ -713,27 +742,44 @@ public class OpenNMSSeleniumTestCase {
         return foreignSourceElement;
     }
 
-    @Deprecated
     protected void deleteTestRequisition() throws Exception {
-        final Integer responseCode = doRequest(new HttpGet(BASE_URL + "/opennms/rest/requisitions/" + REQUISITION_NAME));
-        LOG.debug("Checking for existing test requisition: {}", responseCode);
-        if (responseCode == 404 || responseCode == 204) {
-            LOG.debug("deleteTestRequisition: already deleted");
-            return;
-        }
-
         deleteExistingRequisition(REQUISITION_NAME);
-        doRequest(new HttpDelete(BASE_URL + "/opennms/rest/requisitions/" + REQUISITION_NAME));
-        doRequest(new HttpDelete(BASE_URL + "/opennms/rest/requisitions/deployed/" + REQUISITION_NAME));
-        doRequest(new HttpGet(BASE_URL + "/opennms/rest/requisitions"));
     }
 
     protected void deleteTestUser() throws Exception {
-        doRequest(new HttpDelete(BASE_URL + "/opennms/rest/users/" + USER_NAME));
+        doRequest(new HttpDelete(BASE_URL + "opennms/rest/users/" + USER_NAME));
     }
 
     protected void deleteTestGroup() throws Exception {
-        doRequest(new HttpDelete(BASE_URL + "/opennms/rest/groups/" + GROUP_NAME));
+        doRequest(new HttpDelete(BASE_URL + "opennms/rest/groups/" + GROUP_NAME));
+    }
+
+    protected long getNodesInRequisition(final String foreignSource) {
+        try {
+            final HttpGet request = new HttpGet(BASE_URL + "opennms/rest/requisitions/" + URLEncoder.encode(foreignSource, "UTF-8"));
+            final ResponseData rd = getRequest(request);
+            LOG.debug("getNodesInRequisition: response={}", rd);
+
+            if (rd.getStatus() == 404) {
+                return 0;
+            }
+
+            final DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            final DocumentBuilder builder = factory.newDocumentBuilder();
+            final Document document = builder.parse(new InputSource(new StringReader(rd.getResponseText())));
+            final Element rootElement = document.getDocumentElement();
+            long count = 0;
+            final NodeList children = rootElement.getChildNodes();
+            for (int i = 0; i < children.getLength(); i++) {
+                final Node child = children.item(i);
+                if ("node".equals(child.getNodeName())) {
+                    count++;
+                }
+            }
+            return count;
+        } catch (final Exception e) {
+            throw new OpenNMSTestException(e);
+        }
     }
 
     @Deprecated
@@ -773,12 +819,12 @@ public class OpenNMSSeleniumTestCase {
     }
 
     protected void sendPost(final String urlFragment, final String body, final Integer expectedResponse) throws ClientProtocolException, IOException, InterruptedException {
-        final HttpPost post = new HttpPost(BASE_URL + "opennms" + (urlFragment.startsWith("/")? urlFragment : "/"+urlFragment));
+        final HttpPost post = new HttpPost(BASE_URL + "opennms" + (urlFragment.startsWith("/")? urlFragment : "/" + urlFragment));
         post.setEntity(new StringEntity(body, ContentType.APPLICATION_XML));
         final Integer response = doRequest(post);
         if (expectedResponse == null) {
-            if (response != 303 && response != 200 && response != 201) {
-                throw new RuntimeException("Bad response code! (" + response + "; expected 200, 201, or 303)");
+            if (response != 303 && response != 200 && response != 201 && response != 202) {
+                throw new RuntimeException("Bad response code! (" + response + "; expected 200, 201, 202, or 303)");
             }
         } else {
             if (!response.equals(expectedResponse)) {
@@ -788,23 +834,53 @@ public class OpenNMSSeleniumTestCase {
     }
 
     protected void sendDelete(final String urlFragment) throws ClientProtocolException, IOException, InterruptedException {
-        final HttpDelete del = new HttpDelete(BASE_URL + "opennms" + (urlFragment.startsWith("/")? urlFragment : "/"+urlFragment));
+        sendDelete(urlFragment, null);
+    }
+
+    protected void sendDelete(final String urlFragment, final Integer expectedResponse) throws ClientProtocolException, IOException, InterruptedException {
+        final HttpDelete del = new HttpDelete(BASE_URL + "opennms" + (urlFragment.startsWith("/") ? urlFragment : "/" + urlFragment));
         final Integer response = doRequest(del);
-        if (response != 303 && response != 200) {
-            throw new RuntimeException("Bad response code! (" + response + ")");
+        if (expectedResponse == null) {
+            if (response != 303 && response != 200 && response != 202 && response != 204) {
+                throw new RuntimeException("Bad response code! (" + response + "; expected 200, 202, 204, or 303)");
+            }
+        } else {
+            if (!response.equals(expectedResponse)) {
+                throw new RuntimeException("Bad response code! (" + response + "; expected " + expectedResponse + ")");
+            }
         }
     }
 
-    @Deprecated
     protected final class WaitForNodesInDatabase implements ExpectedCondition<Boolean> {
         private final int m_numberToMatch;
+
         public WaitForNodesInDatabase(int numberOfNodes) {
             m_numberToMatch = numberOfNodes;
         }
 
-        @Override public Boolean apply(final WebDriver input) {
-            provisioningPage();
-            final long nodes = getNodesInDatabase(getForeignSourceElement(REQUISITION_NAME));
+        @Override
+        public Boolean apply(final WebDriver input) {
+            long nodes = getNodesInDatabase(REQUISITION_NAME);
+            LOG.debug("WaitForNodesInDatabase: count={}", nodes);
+            if (nodes == m_numberToMatch) {
+                return true;
+            } else {
+                return null;
+            }
+        }
+    }
+
+    protected final class WaitForNodesInRequisition implements ExpectedCondition<Boolean> {
+        private final int m_numberToMatch;
+
+        public WaitForNodesInRequisition(int numberOfNodes) {
+            m_numberToMatch = numberOfNodes;
+        }
+
+        @Override
+        public Boolean apply(final WebDriver input) {
+            long nodes = getNodesInRequisition(REQUISITION_NAME);
+            LOG.debug("WaitForNodesInRequisition: count={}", nodes);
             if (nodes == m_numberToMatch) {
                 return true;
             } else {
