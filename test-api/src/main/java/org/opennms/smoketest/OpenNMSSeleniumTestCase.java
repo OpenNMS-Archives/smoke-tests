@@ -68,6 +68,8 @@ import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
+import org.jsoup.Jsoup;
+import org.jsoup.select.Elements;
 import org.junit.Rule;
 import org.junit.rules.TestWatcher;
 import org.junit.runner.Description;
@@ -257,6 +259,10 @@ public class OpenNMSSeleniumTestCase {
         }
     };
 
+    protected JavascriptExecutor getExecutor() throws InstantiationException, IllegalAccessException, ClassNotFoundException {
+        return (JavascriptExecutor)getDriver();
+    }
+
     protected WebDriver getDriver() throws InstantiationException, IllegalAccessException, ClassNotFoundException {
         WebDriver driver = null;
         final String driverClass = System.getProperty("org.opennms.smoketest.webdriver.class", System.getProperty("webdriver.class"));
@@ -269,7 +275,7 @@ public class OpenNMSSeleniumTestCase {
             if (usePhantomJS) {
                 final File phantomJS = findPhantomJS();
                 if (phantomJS != null) {
-                    final DesiredCapabilities caps = new DesiredCapabilities();
+                    final DesiredCapabilities caps = DesiredCapabilities.phantomjs();
                     customizeCapabilities(caps);
                     caps.setCapability(PhantomJSDriverService.PHANTOMJS_EXECUTABLE_PATH_PROPERTY, phantomJS.toString());
                     driver = new PhantomJSDriver(caps);
@@ -563,6 +569,19 @@ public class OpenNMSSeleniumTestCase {
 
     public WebElement findElementByXpath(final String xpath) {
         return m_driver.findElement(By.xpath(xpath));
+    }
+
+    public int countElementsMatchingCss(final String css) throws InstantiationException, IllegalAccessException, ClassNotFoundException {
+        // Selenium has a bug where the findElements(By) doesn't return elements; even if I attempt to do it manually
+        // using JavascriptExecutor.execute(), so... parse the DOM on the Java side instead.  :/
+        final org.jsoup.nodes.Document doc = Jsoup.parse(m_driver.getPageSource());
+        final Elements matching = doc.select(css);
+        return matching.size();
+
+        // The original one-line implementation, for your edification.  Look at the majesty!
+        // A single tear rolls down your cheek as you imagine what could have been, if
+        // Selenium wasn't junk.
+        //return getDriver().findElements(By.cssSelector(css)).size();
     }
 
     protected WebElement enterText(final By selector, final String text) {
