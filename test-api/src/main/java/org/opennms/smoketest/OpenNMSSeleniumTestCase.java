@@ -29,6 +29,7 @@
 package org.opennms.smoketest;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.io.File;
@@ -433,6 +434,22 @@ public class OpenNMSSeleniumTestCase {
             setImplicitWait();
         }
         throw new OpenNMSTestException("Element should not exist, but was found: " + element);
+    }
+
+    protected void assertElementDoesNotHaveText(final By by, final String text) {
+        WebElement element = null;
+        try {
+            setImplicitWait(2, TimeUnit.SECONDS);
+            element = getDriver().findElement(by);
+            assertTrue(!element.getText().contains(text));
+        } catch (final NoSuchElementException e) {
+            LOG.debug("Success: element does not exist: {}", by);
+            return;
+        } catch (InstantiationException | IllegalAccessException | ClassNotFoundException e) {
+            throw new OpenNMSTestException(e);
+        } finally {
+            setImplicitWait();
+        }
     }
 
     protected String handleAlert() {
