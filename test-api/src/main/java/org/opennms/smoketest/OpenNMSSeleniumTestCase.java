@@ -1,8 +1,8 @@
 /*******************************************************************************
  * This file is part of OpenNMS(R).
  *
- * Copyright (C) 2011-2014 The OpenNMS Group, Inc.
- * OpenNMS(R) is Copyright (C) 1999-2014 The OpenNMS Group, Inc.
+ * Copyright (C) 2011-2016 The OpenNMS Group, Inc.
+ * OpenNMS(R) is Copyright (C) 1999-2016 The OpenNMS Group, Inc.
  *
  * OpenNMS(R) is a registered trademark of The OpenNMS Group, Inc.
  *
@@ -28,6 +28,7 @@
 
 package org.opennms.smoketest;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
 import java.io.File;
@@ -74,13 +75,13 @@ import org.openqa.selenium.Alert;
 import org.openqa.selenium.By;
 import org.openqa.selenium.Dimension;
 import org.openqa.selenium.JavascriptExecutor;
-import org.openqa.selenium.NoAlertPresentException;
 import org.openqa.selenium.NoSuchElementException;
 import org.openqa.selenium.OutputType;
 import org.openqa.selenium.Point;
 import org.openqa.selenium.TakesScreenshot;
 import org.openqa.selenium.TimeoutException;
 import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.WebDriver.Timeouts;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
@@ -152,7 +153,7 @@ public class OpenNMSSeleniumTestCase {
             try {
                 m_driver = getDriver();
                 LOG.debug("Using driver: {}", m_driver);
-                m_driver.manage().timeouts().implicitlyWait(LOAD_TIMEOUT, TimeUnit.MILLISECONDS);
+                setImplicitWait();
                 m_driver.manage().window().setPosition(new Point(0,0));
                 m_driver.manage().window().setSize(new Dimension(2048, 10000));
                 wait = new WebDriverWait(m_driver, TimeUnit.SECONDS.convert(LOAD_TIMEOUT, TimeUnit.MILLISECONDS));
@@ -171,7 +172,7 @@ public class OpenNMSSeleniumTestCase {
                 wait.until(ExpectedConditions.visibilityOfElementLocated(By.xpath("//div[@id='content']")));
                 try {
                     // Disable implicitlyWait
-                    m_driver.manage().timeouts().implicitlyWait(0, TimeUnit.MILLISECONDS);
+                    setImplicitWait(0, TimeUnit.MILLISECONDS);
                     try {
                         // Make sure that the 'login-attempt-failed' element is not present
                         findElementById("login-attempt-failed");
@@ -180,8 +181,7 @@ public class OpenNMSSeleniumTestCase {
                         // This is expected
                     }
                 } finally {
-                    // Restore the implicitlyWait timeout
-                    m_driver.manage().timeouts().implicitlyWait(LOAD_TIMEOUT, TimeUnit.MILLISECONDS);
+                    setImplicitWait();
                 }
             } catch (final InstantiationException | IllegalAccessException | ClassNotFoundException | TimeoutException e) {
                 LOG.debug("Failed to get driver", e);
@@ -389,6 +389,14 @@ public class OpenNMSSeleniumTestCase {
         return null;
     }
 
+    protected Timeouts setImplicitWait() {
+        return m_driver.manage().timeouts().implicitlyWait(LOAD_TIMEOUT, TimeUnit.MILLISECONDS);
+    }
+
+    protected Timeouts setImplicitWait(final long time, final TimeUnit unit) {
+        return m_driver.manage().timeouts().implicitlyWait(time, unit);
+    }
+
     protected WebDriverWait waitFor(final long seconds) {
         return new WebDriverWait(m_driver, seconds);
     }
@@ -405,14 +413,37 @@ public class OpenNMSSeleniumTestCase {
         };
     }
 
-    protected String handleAlert() {
+    protected void assertElementDoesNotExist(final By by) {
+        WebElement element = null;
         try {
-            final Alert alert = m_driver.switchTo().alert();
+            setImplicitWait(2, TimeUnit.SECONDS);
+            element = getDriver().findElement(by);
+        } catch (final NoSuchElementException e) {
+            LOG.debug("Success: element does not exist: {}", by);
+            return;
+        } catch (InstantiationException | IllegalAccessException | ClassNotFoundException e) {
+            throw new OpenNMSTestException(e);
+        } finally {
+            setImplicitWait();
+        }
+        throw new OpenNMSTestException("Element should not exist, but was found: " + element);
+    }
+
+    protected String handleAlert() {
+        return handleAlert(null);
+    }
+
+    protected String handleAlert(final String expectedText) {
+        try {
+            final Alert alert = wait.until(ExpectedConditions.alertIsPresent());
             final String alertText = alert.getText();
+            if (expectedText != null) {
+                assertEquals(expectedText, alertText);
+            }
             alert.dismiss();
             return alertText;
-        } catch (final NoAlertPresentException e) {
-            LOG.debug("handleAlert: no alert is active");
+        } catch (final TimeoutException e) {
+            LOG.debug("handleAlert: no alert was found");
         }
         return null;
     }
@@ -596,7 +627,7 @@ public class OpenNMSSeleniumTestCase {
     protected void clickId(final String id) throws InterruptedException {
         WebElement element = null;
         try {
-            m_driver.manage().timeouts().implicitlyWait(10, TimeUnit.MILLISECONDS);
+            setImplicitWait(10, TimeUnit.MILLISECONDS);
 
             try {
                 element = findElementById(id);
@@ -620,7 +651,7 @@ public class OpenNMSSeleniumTestCase {
             Thread.sleep(1000);
             element.click();
         } finally {
-            m_driver.manage().timeouts().implicitlyWait(LOAD_TIMEOUT, TimeUnit.MILLISECONDS);
+            setImplicitWait();
         }
     }
 
@@ -751,14 +782,14 @@ public class OpenNMSSeleniumTestCase {
         final String selector = "//span[@data-foreignSource='" + requisitionName + "']";
         WebElement foreignSourceElement = null;
         try {
-            m_driver.manage().timeouts().implicitlyWait(2, TimeUnit.SECONDS);
+            setImplicitWait(2, TimeUnit.SECONDS);
             foreignSourceElement = m_driver.findElement(By.xpath(selector));
         } catch (final NoSuchElementException e) {
             // no match, treat as a no-op
             LOG.debug("Could not find: {}", selector);
             return null;
         } finally {
-            m_driver.manage().timeouts().implicitlyWait(LOAD_TIMEOUT, TimeUnit.MILLISECONDS);
+            setImplicitWait();
         }
         return foreignSourceElement;
     }
