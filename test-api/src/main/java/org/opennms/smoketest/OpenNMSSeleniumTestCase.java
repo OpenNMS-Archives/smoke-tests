@@ -78,6 +78,7 @@ import org.openqa.selenium.Alert;
 import org.openqa.selenium.By;
 import org.openqa.selenium.Dimension;
 import org.openqa.selenium.JavascriptExecutor;
+import org.openqa.selenium.Keys;
 import org.openqa.selenium.NoSuchElementException;
 import org.openqa.selenium.OutputType;
 import org.openqa.selenium.Point;
@@ -452,6 +453,16 @@ public class OpenNMSSeleniumTestCase {
         }
     }
 
+    protected void assertElementHasText(final By by, final String text) {
+        WebElement element;
+        try {
+            element = getDriver().findElement(by);
+            assertTrue(element.getText().contains(text));
+        } catch (InstantiationException | IllegalAccessException | ClassNotFoundException e) {
+            throw new OpenNMSTestException(e);
+        }
+   }
+
     protected String handleAlert() {
         return handleAlert(null);
     }
@@ -584,6 +595,10 @@ public class OpenNMSSeleniumTestCase {
         return m_driver.findElement(By.name(name));
     }
 
+    public WebElement findElementByCss(final String css) {
+        return m_driver.findElement(By.cssSelector(css));
+    }
+
     public WebElement findElementByXpath(final String xpath) {
         return m_driver.findElement(By.xpath(xpath));
     }
@@ -601,7 +616,7 @@ public class OpenNMSSeleniumTestCase {
         //return getDriver().findElements(By.cssSelector(css)).size();
     }
 
-    protected WebElement enterText(final By selector, final String text) {
+    protected WebElement enterText(final By selector, final CharSequence text) {
         return enterText(m_driver, selector, text);
     }
 
@@ -613,38 +628,54 @@ public class OpenNMSSeleniumTestCase {
      * @see https://code.google.com/p/selenium/issues/detail?id=2487
      * @see https://code.google.com/p/selenium/issues/detail?id=8180
      */
-    protected static WebElement enterText(final WebDriver driver, final By selector, final String text) {
+    protected static WebElement enterText(final WebDriver driver, final By selector, final CharSequence text) {
+        final String textString = text.toString();
         LOG.debug("Enter text: '{}' into selector: {}", text, selector);
-        final WebElement element = driver.findElement(selector);
+        WebElement element = driver.findElement(selector);
 
         // Clear the element content
         element.clear();
         // Because clear() seems to be async, verify that it worked before
         // continuing so that we don't erase the value
         int i = 0;
-        while (!"".equals(element.getAttribute("value").trim()) && (i++ < 100)) {
-            try { Thread.sleep(200); } catch (InterruptedException e) {}
+        if (!(text instanceof Keys)) {
+            while (!"".equals(element.getAttribute("value").trim()) && (i++ < 100)) {
+                try { Thread.sleep(200); } catch (InterruptedException e) {}
+            }
         }
 
         // Focus on the element before typing
         scrollToElement(driver, element);
         element.click();
         // Again, focus on the element before typing
-        element.sendKeys("");
+        element.click();
         // Send the keys
         element.sendKeys(text);
         i = 0;
-        while (!text.equals(element.getAttribute("value")) && (i++ < 100)) {
-            try { Thread.sleep(200); } catch (InterruptedException e) {}
+
+        if (!(text instanceof Keys)) {
+            while (!textString.equals(element.getAttribute("value")) && (i++ < 100)) {
+                LOG.debug("element value ({}) != text ({})", element.getAttribute("value"), textString);
+                try { Thread.sleep(200); } catch (InterruptedException e) {}
+            }
         }
         return element;
     }
 
-    protected static void scrollToElement(final WebDriver driver, final WebElement element) {
+    protected WebElement scrollToElement(final WebElement element) {
+        try {
+            return scrollToElement(getDriver(), element);
+        } catch (final InstantiationException | IllegalAccessException | ClassNotFoundException e) {
+            throw new OpenNMSTestException(e);
+        }
+    }
+
+    protected static WebElement scrollToElement(final WebDriver driver, final WebElement element) {
         final List<Integer> bounds = getBoundedRectangleOfElement(driver, element);
         final int windowHeight = driver.manage().window().getSize().getHeight();
         final JavascriptExecutor je = (JavascriptExecutor)driver;
         je.executeScript("window.scrollTo(0, " + (bounds.get(1) - (windowHeight/2)) + ");");
+        return element;
     }
 
     @SuppressWarnings("unchecked")
@@ -785,27 +816,18 @@ public class OpenNMSSeleniumTestCase {
 
                 LOG.debug("deleteExistingRequisition: nodesInRequisition={}, nodesInDatabase={}", nodesInRequisition, nodesInDatabase);
 
-                final String emptyRequisition = "<model-import xmlns=\"http://xmlns.opennms.org/xsd/config/model-import\" date-stamp=\"2013-03-29T11:36:55.901-04:00\" foreign-source=\"" + foreignSource + "\" last-import=\"2016-03-29T10:40:23.947-04:00\"></model-import>";
                 final String foreignSourceUrlFragment = URLEncoder.encode(foreignSource, "UTF-8");
 
                 if (nodesInDatabase > 0) {
-                    LOG.debug("deleteExistingRequisition: There are nodes in the database. Synchronizing empty requisition.");
-
-                    sendPost("/rest/requisitions", emptyRequisition);
-                    wait.until(new WaitForNodesInRequisition(0));
-
-                    final HttpPut request = new HttpPut(BASE_URL + "opennms/rest/requisitions/" + foreignSourceUrlFragment + "/import");
-                    final Integer status = doRequest(request);
-                    if (status < 200 || status >= 400) {
-                        throw new OpenNMSTestException("Unknown status: " + status);
-                    }
-                    wait.until(new WaitForNodesInDatabase(0));
+                    createRequisition(foreignSource);
                 }
 
                 if (requisitionExists(foreignSource)) {
                     // make sure the requisition is deleted
                     sendDelete("/rest/requisitions/" + foreignSourceUrlFragment);
                     sendDelete("/rest/requisitions/deployed/" + foreignSourceUrlFragment);
+                    sendDelete("/rest/foreignSources/" + foreignSourceUrlFragment);
+                    sendDelete("/rest/foreignSources/deployed/" + foreignSourceUrlFragment);
                 }
             } catch (final IOException | InterruptedException e1) {
                 throw new OpenNMSTestException(e1);
@@ -828,6 +850,29 @@ public class OpenNMSSeleniumTestCase {
             setImplicitWait();
         }
         return foreignSourceElement;
+    }
+
+    protected void createTestRequisition() {
+        createRequisition(REQUISITION_NAME);
+    }
+
+    protected void createRequisition(final String foreignSource) {
+        try {
+            final String emptyRequisition = "<model-import xmlns=\"http://xmlns.opennms.org/xsd/config/model-import\" date-stamp=\"2013-03-29T11:36:55.901-04:00\" foreign-source=\"" + foreignSource + "\" last-import=\"2016-03-29T10:40:23.947-04:00\"></model-import>";
+            final String foreignSourceUrlFragment = URLEncoder.encode(foreignSource, "UTF-8");
+    
+            sendPost("/rest/requisitions", emptyRequisition);
+            wait.until(new WaitForNodesInRequisition(0));
+    
+            final HttpPut request = new HttpPut(BASE_URL + "opennms/rest/requisitions/" + foreignSourceUrlFragment + "/import");
+            final Integer status = doRequest(request);
+            if (status < 200 || status >= 400) {
+                throw new OpenNMSTestException("Unknown status: " + status);
+            }
+            wait.until(new WaitForNodesInDatabase(0));
+        } catch (final Exception e) {
+            throw new OpenNMSTestException(e);
+        }
     }
 
     protected void deleteTestRequisition() throws Exception {
