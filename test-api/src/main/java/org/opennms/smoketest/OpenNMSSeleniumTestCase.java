@@ -765,6 +765,9 @@ public class OpenNMSSeleniumTestCase {
                     } else {
                         throw new ClientProtocolException("Unexpected response status: " + status);
                     }
+                } catch (final Exception e) {
+                    LOG.warn("Unhandled exception", e);
+                    return new ResponseData(-1, null);
                 } finally {
                     waitForCompletion.countDown();
                 }
@@ -866,7 +869,7 @@ public class OpenNMSSeleniumTestCase {
     
             final HttpPut request = new HttpPut(BASE_URL + "opennms/rest/requisitions/" + foreignSourceUrlFragment + "/import");
             final Integer status = doRequest(request);
-            if (status < 200 || status >= 400) {
+            if (status == null || status < 200 || status >= 400) {
                 throw new OpenNMSTestException("Unknown status: " + status);
             }
             wait.until(new WaitForNodesInDatabase(0));
@@ -956,11 +959,11 @@ public class OpenNMSSeleniumTestCase {
         post.setEntity(new StringEntity(body, ContentType.APPLICATION_XML));
         final Integer response = doRequest(post);
         if (expectedResponse == null) {
-            if (response != 303 && response != 200 && response != 201 && response != 202) {
+            if (response == null || (response != 303 && response != 200 && response != 201 && response != 202)) {
                 throw new RuntimeException("Bad response code! (" + response + "; expected 200, 201, 202, or 303)");
             }
         } else {
-            if (!response.equals(expectedResponse)) {
+            if (!expectedResponse.equals(response)) {
                 throw new RuntimeException("Bad response code! (" + response + "; expected " + expectedResponse + ")");
             }
         }
@@ -974,11 +977,11 @@ public class OpenNMSSeleniumTestCase {
         final HttpDelete del = new HttpDelete(BASE_URL + "opennms" + (urlFragment.startsWith("/") ? urlFragment : "/" + urlFragment));
         final Integer response = doRequest(del);
         if (expectedResponse == null) {
-            if (response != 303 && response != 200 && response != 202 && response != 204) {
+            if (response == null || (response != 303 && response != 200 && response != 202 && response != 204)) {
                 throw new RuntimeException("Bad response code! (" + response + "; expected 200, 202, 204, or 303)");
             }
         } else {
-            if (!response.equals(expectedResponse)) {
+            if (!expectedResponse.equals(response)) {
                 throw new RuntimeException("Bad response code! (" + response + "; expected " + expectedResponse + ")");
             }
         }
