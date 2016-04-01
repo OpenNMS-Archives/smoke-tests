@@ -896,7 +896,7 @@ public class OpenNMSSeleniumTestCase {
             final ResponseData rd = getRequest(request);
             LOG.debug("getNodesInRequisition: response={}", rd);
 
-            if (rd.getStatus() == 404) {
+            if (rd.getStatus() == 404 || rd.getStatus() == -1 || rd.getResponseText() == null) {
                 return 0;
             }
 
