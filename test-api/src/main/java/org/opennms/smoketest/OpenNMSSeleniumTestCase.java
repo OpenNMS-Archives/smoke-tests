@@ -82,6 +82,7 @@ import org.openqa.selenium.Keys;
 import org.openqa.selenium.NoSuchElementException;
 import org.openqa.selenium.OutputType;
 import org.openqa.selenium.Point;
+import org.openqa.selenium.StaleElementReferenceException;
 import org.openqa.selenium.TakesScreenshot;
 import org.openqa.selenium.TimeoutException;
 import org.openqa.selenium.WebDriver;
@@ -409,6 +410,41 @@ public class OpenNMSSeleniumTestCase {
         return new WebDriverWait(m_driver, seconds);
     }
 
+    protected void waitForClose(final By selector) {
+        wait.until(new ExpectedCondition<Boolean>() {
+            @Override
+            public Boolean apply(final WebDriver input) {
+                try {
+                    Thread.sleep(200);
+                    final WebElement element = input.findElement(selector);
+                    if (new Point(0,0).equals(element.getLocation()) && new Dimension(0,0).equals(element.getSize())) {
+                        LOG.debug("waitForClose: {} element technically exists, but is sized 0,0");
+                        return true;
+                    }
+                    LOG.debug("waitForClose: {} element still exists at location {} with size {}: {}", selector, element.getLocation(), element.getSize(), element.getText());
+                    input.manage().timeouts().implicitlyWait(2, TimeUnit.SECONDS);
+                    try {
+                        return !(input.findElement(selector).isDisplayed());
+                    } catch (NoSuchElementException e) {
+                        // Returns true because the element is not present in DOM. The
+                        // try block checks if the element is present but is invisible.
+                        return true;
+                    } catch (StaleElementReferenceException e) {
+                        // Returns true because stale element reference implies that element
+                        // is no longer visible.
+                        return true;
+                    }
+                } catch (final NoSuchElementException e) {
+                    return true;
+                } catch (final Exception e) {
+                    throw new OpenNMSTestException(e);
+                } finally {
+                    input.manage().timeouts().implicitlyWait(LOAD_TIMEOUT, TimeUnit.MILLISECONDS);
+                }
+            }
+        });
+    }
+
     protected ExpectedCondition<Boolean> pageContainsText(final String text) {
         final String escapedText = text.replace("\'", "\\\'");
         return new ExpectedCondition<Boolean>() {
@@ -461,7 +497,7 @@ public class OpenNMSSeleniumTestCase {
         } catch (InstantiationException | IllegalAccessException | ClassNotFoundException e) {
             throw new OpenNMSTestException(e);
         }
-   }
+    }
 
     protected String handleAlert() {
         return handleAlert(null);
@@ -682,8 +718,8 @@ public class OpenNMSSeleniumTestCase {
     protected static List<Integer> getBoundedRectangleOfElement(final WebDriver driver, final WebElement we) {
         final JavascriptExecutor je = (JavascriptExecutor)driver;
         final List<String> bounds = (ArrayList<String>) je.executeScript(
-                "var rect = arguments[0].getBoundingClientRect();" +
-                "return [ '' + parseInt(rect.left), '' + parseInt(rect.top), '' + parseInt(rect.width), '' + parseInt(rect.height) ]", we);
+                                                                         "var rect = arguments[0].getBoundingClientRect();" +
+                                                                                 "return [ '' + parseInt(rect.left), '' + parseInt(rect.top), '' + parseInt(rect.width), '' + parseInt(rect.height) ]", we);
         final List<Integer> ret = new ArrayList<>();
         for (final String entry : bounds) {
             ret.add(Integer.valueOf(entry));
@@ -785,6 +821,7 @@ public class OpenNMSSeleniumTestCase {
         try {
             final HttpGet request = new HttpGet(BASE_URL + "opennms/rest/nodes?foreignSource=" + URLEncoder.encode(foreignSource, "UTF-8"));
             final ResponseData rd = getRequest(request);
+            LOG.debug("getNodesInDatabase: response={}", rd);
 
             final DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             final DocumentBuilder builder = factory.newDocumentBuilder();
@@ -863,10 +900,10 @@ public class OpenNMSSeleniumTestCase {
         try {
             final String emptyRequisition = "<model-import xmlns=\"http://xmlns.opennms.org/xsd/config/model-import\" date-stamp=\"2013-03-29T11:36:55.901-04:00\" foreign-source=\"" + foreignSource + "\" last-import=\"2016-03-29T10:40:23.947-04:00\"></model-import>";
             final String foreignSourceUrlFragment = URLEncoder.encode(foreignSource, "UTF-8");
-    
+
             sendPost("/rest/requisitions", emptyRequisition);
             wait.until(new WaitForNodesInRequisition(0));
-    
+
             final HttpPut request = new HttpPut(BASE_URL + "opennms/rest/requisitions/" + foreignSourceUrlFragment + "/import");
             final Integer status = doRequest(request);
             if (status == null || status < 200 || status >= 400) {
