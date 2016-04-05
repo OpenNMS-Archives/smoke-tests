@@ -1030,15 +1030,22 @@ public class OpenNMSSeleniumTestCase {
     }
 
     protected final class WaitForNodesInDatabase implements ExpectedCondition<Boolean> {
+        private final String m_foreignSource;
         private final int m_numberToMatch;
 
         public WaitForNodesInDatabase(int numberOfNodes) {
+            m_foreignSource = REQUISITION_NAME;
+            m_numberToMatch = numberOfNodes;
+        }
+
+        public WaitForNodesInDatabase(final String foreignSource, int numberOfNodes) {
+            m_foreignSource = foreignSource;
             m_numberToMatch = numberOfNodes;
         }
 
         @Override
         public Boolean apply(final WebDriver input) {
-            long nodes = getNodesInDatabase(REQUISITION_NAME);
+            long nodes = getNodesInDatabase(m_foreignSource);
             LOG.debug("WaitForNodesInDatabase: count={}", nodes);
             if (nodes == m_numberToMatch) {
                 return true;
