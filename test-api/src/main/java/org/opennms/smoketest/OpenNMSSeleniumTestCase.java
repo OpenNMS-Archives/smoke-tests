@@ -78,6 +78,7 @@ import org.openqa.selenium.Alert;
 import org.openqa.selenium.By;
 import org.openqa.selenium.Dimension;
 import org.openqa.selenium.JavascriptExecutor;
+import org.openqa.selenium.NoAlertPresentException;
 import org.openqa.selenium.NoSuchElementException;
 import org.openqa.selenium.OutputType;
 import org.openqa.selenium.Point;
@@ -505,13 +506,15 @@ public class OpenNMSSeleniumTestCase {
 
     protected String handleAlert(final String expectedText) {
         try {
-            final Alert alert = wait.until(ExpectedConditions.alertIsPresent());
+            final Alert alert = m_driver.switchTo().alert();
             final String alertText = alert.getText();
             if (expectedText != null) {
                 assertEquals(expectedText, alertText);
             }
             alert.dismiss();
             return alertText;
+        } catch (final NoAlertPresentException e) {
+            LOG.debug("handleAlert: no alert is active");
         } catch (final TimeoutException e) {
             LOG.debug("handleAlert: no alert was found");
         }
