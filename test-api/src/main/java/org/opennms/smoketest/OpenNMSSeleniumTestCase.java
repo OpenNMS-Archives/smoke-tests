@@ -78,11 +78,9 @@ import org.openqa.selenium.Alert;
 import org.openqa.selenium.By;
 import org.openqa.selenium.Dimension;
 import org.openqa.selenium.JavascriptExecutor;
-import org.openqa.selenium.Keys;
 import org.openqa.selenium.NoSuchElementException;
 import org.openqa.selenium.OutputType;
 import org.openqa.selenium.Point;
-import org.openqa.selenium.StaleElementReferenceException;
 import org.openqa.selenium.TakesScreenshot;
 import org.openqa.selenium.TimeoutException;
 import org.openqa.selenium.WebDriver;
@@ -106,6 +104,7 @@ import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
 
+import com.google.common.base.Joiner;
 import com.google.common.io.Files;
 import com.thoughtworks.selenium.SeleniumException;
 
@@ -411,38 +410,39 @@ public class OpenNMSSeleniumTestCase {
     }
 
     protected void waitForClose(final By selector) {
-        wait.until(new ExpectedCondition<Boolean>() {
-            @Override
-            public Boolean apply(final WebDriver input) {
-                try {
-                    Thread.sleep(200);
-                    final WebElement element = input.findElement(selector);
-                    if (new Point(0,0).equals(element.getLocation()) && new Dimension(0,0).equals(element.getSize())) {
-                        LOG.debug("waitForClose: {} element technically exists, but is sized 0,0");
-                        return true;
-                    }
-                    LOG.debug("waitForClose: {} element still exists at location {} with size {}: {}", selector, element.getLocation(), element.getSize(), element.getText());
-                    input.manage().timeouts().implicitlyWait(2, TimeUnit.SECONDS);
+        try {
+            setImplicitWait(1, TimeUnit.SECONDS);
+            wait.until(new ExpectedCondition<Boolean>() {
+                @Override
+                public Boolean apply(final WebDriver input) {
                     try {
-                        return !(input.findElement(selector).isDisplayed());
-                    } catch (NoSuchElementException e) {
-                        // Returns true because the element is not present in DOM. The
-                        // try block checks if the element is present but is invisible.
+                        Thread.sleep(200);
+                        final List<WebElement> elements = input.findElements(selector);
+                        if (elements.size() == 0) {
+                            return true;
+                        }
+                        LOG.debug("waitForClose: matching elements: {}", elements);
+                        WebElement element = input.findElement(selector);
+                        final Point location = element.getLocation();
+                        element = input.findElement(selector);
+                        final Dimension size = element.getSize();
+                        if (new Point(0,0).equals(location) && new Dimension(0,0).equals(size)) {
+                            LOG.debug("waitForClose: {} element technically exists, but is sized 0,0");
+                            return true;
+                        }
+                        LOG.debug("waitForClose: {} element still exists at location {} with size {}: {}", selector, location, size, element.getText());
+                        return false;
+                    } catch (final NoSuchElementException e) {
                         return true;
-                    } catch (StaleElementReferenceException e) {
-                        // Returns true because stale element reference implies that element
-                        // is no longer visible.
-                        return true;
+                    } catch (final Exception e) {
+                        LOG.debug("waitForClose: unknown exception", e);
+                        throw new OpenNMSTestException(e);
                     }
-                } catch (final NoSuchElementException e) {
-                    return true;
-                } catch (final Exception e) {
-                    throw new OpenNMSTestException(e);
-                } finally {
-                    input.manage().timeouts().implicitlyWait(LOAD_TIMEOUT, TimeUnit.MILLISECONDS);
                 }
-            }
-        });
+            });
+        } finally {
+            setImplicitWait();
+        }
     }
 
     protected ExpectedCondition<Boolean> pageContainsText(final String text) {
@@ -652,7 +652,7 @@ public class OpenNMSSeleniumTestCase {
         //return getDriver().findElements(By.cssSelector(css)).size();
     }
 
-    protected WebElement enterText(final By selector, final CharSequence text) {
+    protected WebElement enterText(final By selector, final CharSequence... text) {
         return enterText(m_driver, selector, text);
     }
 
@@ -664,20 +664,19 @@ public class OpenNMSSeleniumTestCase {
      * @see https://code.google.com/p/selenium/issues/detail?id=2487
      * @see https://code.google.com/p/selenium/issues/detail?id=8180
      */
-    protected static WebElement enterText(final WebDriver driver, final By selector, final CharSequence text) {
-        final String textString = text.toString();
+    protected static WebElement enterText(final WebDriver driver, final By selector, final CharSequence... text) {
+        final String textString = Joiner.on("").join(text);
         LOG.debug("Enter text: '{}' into selector: {}", text, selector);
         WebElement element = driver.findElement(selector);
 
         // Clear the element content
         element.clear();
+
         // Because clear() seems to be async, verify that it worked before
         // continuing so that we don't erase the value
         int i = 0;
-        if (!(text instanceof Keys)) {
-            while (!"".equals(element.getAttribute("value").trim()) && (i++ < 100)) {
-                try { Thread.sleep(200); } catch (InterruptedException e) {}
-            }
+        while (!"".equals(element.getAttribute("value").trim()) && (i++ < 100)) {
+            try { Thread.sleep(200); } catch (InterruptedException e) {}
         }
 
         // Focus on the element before typing
@@ -689,11 +688,9 @@ public class OpenNMSSeleniumTestCase {
         element.sendKeys(text);
         i = 0;
 
-        if (!(text instanceof Keys)) {
-            while (!textString.equals(element.getAttribute("value")) && (i++ < 100)) {
-                LOG.debug("element value ({}) != text ({})", element.getAttribute("value"), textString);
-                try { Thread.sleep(200); } catch (InterruptedException e) {}
-            }
+        while (!textString.equals(element.getAttribute("value")) && (i++ < 100)) {
+            LOG.debug("element value ({}) != text ({})", element.getAttribute("value"), textString);
+            try { Thread.sleep(200); } catch (InterruptedException e) {}
         }
         return element;
     }
@@ -728,6 +725,10 @@ public class OpenNMSSeleniumTestCase {
     }
 
     protected void clickId(final String id) throws InterruptedException {
+        clickId(id, true);
+    }
+
+    protected void clickId(final String id, final boolean refresh) throws InterruptedException {
         WebElement element = null;
         try {
             setImplicitWait(10, TimeUnit.MILLISECONDS);
@@ -744,8 +745,12 @@ public class OpenNMSSeleniumTestCase {
                     break;
                 }
                 try {
-                    m_driver.navigate().refresh();
-                    Thread.sleep(2000);
+                    if (refresh) {
+                        m_driver.navigate().refresh();
+                        //Thread.sleep(2000);
+                    }
+                    wait.until(ExpectedConditions.visibilityOfElementLocated(By.id(id)));
+                    wait.until(ExpectedConditions.elementToBeClickable(By.id(id)));
                     element = findElementById(id);
                 } catch (final Throwable t) {
                     LOG.warn("Failed to locate id=" + id, t);
@@ -1062,4 +1067,18 @@ public class OpenNMSSeleniumTestCase {
         }
     }
 
+
+    protected void waitForDropdownClose() {
+        waitForClose(By.cssSelector(".modal-dialog ul.dropdown-menu"));
+    }
+
+    protected void waitForModalClose() {
+        System.err.println("waitForModalClose()");
+        waitForClose(By.cssSelector(".modal-dialog"));
+    }
+
+    protected WebElement findModal() {
+        final String xpath = "//div[contains(@class, 'modal-dialog')]";
+        return wait.until(ExpectedConditions.visibilityOfElementLocated(By.xpath(xpath)));
+    }
 }
