@@ -82,6 +82,7 @@ import org.openqa.selenium.NoAlertPresentException;
 import org.openqa.selenium.NoSuchElementException;
 import org.openqa.selenium.OutputType;
 import org.openqa.selenium.Point;
+import org.openqa.selenium.StaleElementReferenceException;
 import org.openqa.selenium.TakesScreenshot;
 import org.openqa.selenium.TimeoutException;
 import org.openqa.selenium.WebDriver;
@@ -433,7 +434,7 @@ public class OpenNMSSeleniumTestCase {
                         }
                         LOG.debug("waitForClose: {} element still exists at location {} with size {}: {}", selector, location, size, element.getText());
                         return false;
-                    } catch (final NoSuchElementException e) {
+                    } catch (final NoSuchElementException | StaleElementReferenceException e) {
                         return true;
                     } catch (final Exception e) {
                         LOG.debug("waitForClose: unknown exception", e);
