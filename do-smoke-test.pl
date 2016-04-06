@@ -134,19 +134,6 @@ sub fail {
 
 		$sourcedir = File::Spec->catdir($OPENNMS_HOME, 'data', 'log');
 		system('rsync', '-ar', $sourcedir . '/', $targetdir . '/');
-
-		for my $logfile ('manager.log', 'output.log') {
-			my $file = File::Spec->catfile($OPENNMS_HOME, 'logs', $logfile);
-			if (! -e $file) {
-				$file = File::Spec->catfile($OPENNMS_HOME, 'logs', 'daemon', $logfile);
-			}
-	
-			if (-e $file) {
-				my $contents = read_file($file);
-				print STDOUT "=== contents of $file ===\n";
-				print STDOUT $contents, "\n\n";
-			}
-		}
 	}
 
 	exit $ret;
