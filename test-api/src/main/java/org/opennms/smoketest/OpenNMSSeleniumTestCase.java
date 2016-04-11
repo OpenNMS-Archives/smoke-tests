@@ -133,6 +133,7 @@ public class OpenNMSSeleniumTestCase {
     }
 
     public static final long   LOAD_TIMEOUT       = Long.getLong("org.opennms.smoketest.web-timeout", 120000l);
+    public static final long   REQ_TIMEOUT        = Long.getLong("org.opennms.smoketest.requisition-timeout", 240000l);
     public static final String OPENNMS_WEB_HOST   = System.getProperty("org.opennms.smoketest.web-host", "localhost");
     public static final int    OPENNMS_WEB_PORT   = Integer.getInteger("org.opennms.smoketest.web-port", 8980);
     public static final String OPENNMS_EVENT_HOST = System.getProperty("org.opennms.smoketest.event-host", OPENNMS_WEB_HOST);
@@ -151,6 +152,7 @@ public class OpenNMSSeleniumTestCase {
 
     protected WebDriver m_driver = null;
     protected WebDriverWait wait = null;
+    protected WebDriverWait requisitionWait = null;
 
     @Rule
     public TestWatcher m_watcher = new TestWatcher() {
@@ -163,6 +165,7 @@ public class OpenNMSSeleniumTestCase {
                 m_driver.manage().window().setPosition(new Point(0,0));
                 m_driver.manage().window().setSize(new Dimension(2048, 10000));
                 wait = new WebDriverWait(m_driver, TimeUnit.SECONDS.convert(LOAD_TIMEOUT, TimeUnit.MILLISECONDS));
+                requisitionWait = new WebDriverWait(m_driver, TimeUnit.SECONDS.convert(REQ_TIMEOUT, TimeUnit.MILLISECONDS));
 
                 m_driver.get(BASE_URL + "opennms/login.jsp");
 
@@ -911,14 +914,14 @@ public class OpenNMSSeleniumTestCase {
             final String foreignSourceUrlFragment = URLEncoder.encode(foreignSource, "UTF-8");
 
             sendPost("/rest/requisitions", emptyRequisition);
-            wait.until(new WaitForNodesInRequisition(0));
+            requisitionWait.until(new WaitForNodesInRequisition(0));
 
             final HttpPut request = new HttpPut(BASE_URL + "opennms/rest/requisitions/" + foreignSourceUrlFragment + "/import");
             final Integer status = doRequest(request);
             if (status == null || status < 200 || status >= 400) {
                 throw new OpenNMSTestException("Unknown status: " + status);
             }
-            wait.until(new WaitForNodesInDatabase(0));
+            requisitionWait.until(new WaitForNodesInDatabase(0));
         } catch (final Exception e) {
             throw new OpenNMSTestException(e);
         }
