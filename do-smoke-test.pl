@@ -385,7 +385,21 @@ sub configure_opennms {
 		if ($? == 0) {
 			print "done\n";
 		} else {
-			fail(1, "'runjava -s' failed:\n" . $output);
+			print "- Trying 'javahome.pl'... ";
+			my $javahome = File::Spec->catfile($OPENNMS_TESTDIR, "bin", "javahome.pl");
+			my $JAVAHOME = `"$javahome" 2>&1`;
+			chomp($JAVAHOME);
+			if ($? == 0) {
+				print "done\n";
+				$output = `"$runjava" -S "$JAVAHOME/bin/java" 2>&1`;
+				if ($? == 0) {
+					print "done\n";
+				} else {
+					fail(1, "'runjava -s' failed:\n" . $output);
+				}
+			} else {
+				fail(1, "'javahome.pl' failed:\n" . $output);
+			}
 		}
 	}
 
