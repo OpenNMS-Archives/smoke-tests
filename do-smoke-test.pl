@@ -18,6 +18,7 @@ use IO::Handle;
 use IPC::Open3;
 use POSIX;
 use Proc::ProcessTable;
+use RPM::VersionCompare;
 use version;
 
 use OpenNMS::Release 2.9.12;
@@ -324,12 +325,16 @@ sub install_opennms {
 	opendir(DIR, $RPMDIR) or fail(1, "Failed to open $RPMDIR for reading: $!");
 
 	my @files = map { File::Spec->catfile($RPMDIR, $_) } grep { /\.rpm$/ } readdir(DIR);
-	my @corefile = grep { /(opennms|meridian)-core-/ } @files;
-	if (@corefile != 1) {
-		fail(1, "More than one *-core RPM found!  Something went wrong setting up the smoke test directory.\nRPMS:\n* " . join("\n* ", @files) . "\n");
-	}
+	my @corefiles = grep { /(opennms|meridian)-core-/ } @files;
+	@corefiles = sort {
+		my ($aver) = $a =~ /-core-(.+?)\.noarch\.rpm/;
+		my ($bver) = $b =~ /-core-(.+?)\.noarch\.rpm/;
+		return RPM::VersionCompare::labelCompare($bver, $aver);
+	} @corefiles;
+	print "- Found OpenNMS Core package(s):\n* " . join("\n* ", @corefiles) . "\n";
+	my $corefile = $corefiles[0];
 
-	my ($version) = $corefile[0] =~ /-core-(.+?)\.noarch\.rpm/;
+	my ($version) = $corefile =~ /-core-(.+?)\.noarch\.rpm/;
 	@files = grep { index($_, $version) >= 0 } @files;
 
 	print "- Installing the following packages (version $version):\n";
@@ -458,7 +463,7 @@ sub reset_database {
 	}
 	close($err);
 	waitpid($pid, 0);
-	my $child_exit_status = $? >> 8;
+	$child_exit_status = $? >> 8;
 
 	if ($child_exit_status == 0) {
 		$ok = 1;
