@@ -97,7 +97,7 @@ remove_opennms();
 clean_temp();
 clean_yum();
 install_opennms();
-drop_database();
+reset_database();
 configure_opennms();
 clean_logs();
 start_opennms();
@@ -407,7 +407,7 @@ sub configure_opennms {
 	system(File::Spec->catfile($OPENNMS_HOME, "bin", "install"), "-dis") == 0 or fail(1, "Failed while running 'install -dis'.");
 }
 
-sub drop_database {
+sub reset_database {
 	print "- Restarting PostgreSQL... ";
 	system("service", "postgresql", "restart") == 0 or fail(1, "Unable to restart PostgreSQL: $!");
 	print "done\n";
@@ -443,6 +443,33 @@ sub drop_database {
 	} else {
 		print "failed\n";
 		fail(1, "Failed to drop database:\n" . $output);
+	}
+
+	print "Recreating the 'OpenNMS' database... ";
+	$in = IO::Handle->new();
+	$out = IO::Handle->new();
+	$err = IO::Handle->new();
+	$pid = open3($in, $out, $err, 'createdb', '-U', 'opennms', '-E', 'UNICODE', 'opennms');
+	close($out) or fail(1, "Failed to close STDOUT on createdb command: $!");
+	close($in) or fail(1, "Failed to close STDIN on createdb command: $!");
+	while (my $line = <$err>) {
+		chomp($line);
+		$output .= "\n" . $line;
+	}
+	close($err);
+	waitpid($pid, 0);
+	my $child_exit_status = $? >> 8;
+
+	if ($child_exit_status == 0) {
+		$ok = 1;
+	}
+
+	if ($ok) {
+		print "done\n";
+		return;
+	} else {
+		print "failed\n";
+		fail(1, "Failed to create database:\n" . $output);
 	}
 }
 
