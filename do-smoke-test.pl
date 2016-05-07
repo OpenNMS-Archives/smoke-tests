@@ -174,7 +174,7 @@ sub clean_temp {
 	print "- cleaning out old /tmp files from tests... ";
 	find({
 		wanted => sub {
-			if ($_ =~ /^(FileAnticipator_temp|StringResource\d+|com\.vaadin\.client\.metadata\.ConnectorBundleLoaderImpl|mockSnmpAgent\d+|stdout\d+)/) {
+			if ($_ =~ /^(FileAnticipator_temp|StringResource\d+|com\.vaadin\.client\.metadata\.ConnectorBundleLoaderImpl|mockSnmpAgent\d+|stdout\d+|sample-bar-chart-|ops4j-store-anonymous-|(anonymous|img|opennms)[0-9a-fA-F]+|modules\.\d+|jna-)/) {
 				if (-d $_) {
 					rmtree($File::Find::name);
 				} else {
