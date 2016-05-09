@@ -35,11 +35,14 @@ import static org.junit.Assert.fail;
 import java.io.File;
 import java.io.IOException;
 import java.io.StringReader;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -111,16 +114,48 @@ import com.google.common.io.Files;
 import com.thoughtworks.selenium.SeleniumException;
 
 public class OpenNMSSeleniumTestCase {
-    static {
-        final String logLevel = System.getProperty("org.opennms.smoketest.logLevel", "DEBUG");
-        final Logger logger = org.slf4j.LoggerFactory.getLogger(ch.qos.logback.classic.Logger.ROOT_LOGGER_NAME);
+    private static final Logger LOG = LoggerFactory.getLogger(OpenNMSSeleniumTestCase.class);
+    private static final String APACHE_LOG_LEVEL = "INFO"; // change this to help debug smoke tests
+
+    private static final boolean setLevel(final String pack, final String level) {
+        final Logger logger = org.slf4j.LoggerFactory.getLogger(pack);
         if (logger instanceof ch.qos.logback.classic.Logger) {
-            final ch.qos.logback.classic.Logger logbackLogger = (ch.qos.logback.classic.Logger) logger;
-            logbackLogger.setLevel(ch.qos.logback.classic.Level.valueOf(logLevel));
+            ((ch.qos.logback.classic.Logger) logger).setLevel(ch.qos.logback.classic.Level.valueOf(level));
+            return true;
         }
+        return false;
     }
 
-    private static final Logger LOG = LoggerFactory.getLogger(OpenNMSSeleniumTestCase.class);
+    static {
+        final String logLevel = System.getProperty("org.opennms.smoketest.logLevel", "DEBUG");
+
+        /* Set up the mock log appender, if it is in the classpath */
+        final Properties props = new Properties();
+        props.put("log4j.logger.org.apache.http", APACHE_LOG_LEVEL);
+        try {
+            final Class<?> mockLogAppender = Class.forName("org.opennms.core.test.MockLogAppender");
+            if (mockLogAppender != null) {
+                final Method[] methods = mockLogAppender.getMethods();
+                for (final Method method : methods) {
+                    System.err.println("method=" + method);
+                }
+                final Method m = mockLogAppender.getMethod("setupLogging", Boolean.TYPE, String.class, Properties.class);
+                if (m != null) {
+                    m.invoke(null, true, logLevel, props);
+                }
+            }
+        } catch (final ClassNotFoundException | NoSuchMethodException | SecurityException | IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
+            throw new RuntimeException(e);
+        }
+
+        /* Set up apache commons directly, if possible */
+        System.setProperty("org.apache.commons.logging.Log", "org.apache.commons.logging.impl.SimpleLog");
+        System.setProperty("org.apache.commons.logging.simplelog.log.org.apache.http", APACHE_LOG_LEVEL);
+
+        /* Set up logback, if it's there */
+        setLevel(ch.qos.logback.classic.Logger.ROOT_LOGGER_NAME, logLevel);
+        setLevel("org.apache.http", APACHE_LOG_LEVEL);
+    }
 
     static {
         final File chromeDriver = findChromeDriver();
