@@ -438,10 +438,11 @@ public class OpenNMSSeleniumTestCase {
     }
 
     protected Timeouts setImplicitWait() {
-        return m_driver.manage().timeouts().implicitlyWait(LOAD_TIMEOUT, TimeUnit.MILLISECONDS);
+        return setImplicitWait(LOAD_TIMEOUT, TimeUnit.MILLISECONDS);
     }
 
     protected Timeouts setImplicitWait(final long time, final TimeUnit unit) {
+        LOG.debug("Setting implicit wait to {} milliseconds.", unit.toMillis(time));
         return m_driver.manage().timeouts().implicitlyWait(time, unit);
     }
 
@@ -450,6 +451,7 @@ public class OpenNMSSeleniumTestCase {
     }
 
     protected void waitForClose(final By selector) {
+        LOG.debug("waitForClose: {}", selector);
         try {
             setImplicitWait(1, TimeUnit.SECONDS);
             wait.until(new ExpectedCondition<Boolean>() {
@@ -464,10 +466,11 @@ public class OpenNMSSeleniumTestCase {
                         LOG.debug("waitForClose: matching elements: {}", elements);
                         WebElement element = input.findElement(selector);
                         final Point location = element.getLocation();
+                        // recreate it because the browser is funny about timing after the getLocation()
                         element = input.findElement(selector);
                         final Dimension size = element.getSize();
                         if (new Point(0,0).equals(location) && new Dimension(0,0).equals(size)) {
-                            LOG.debug("waitForClose: {} element technically exists, but is sized 0,0");
+                            LOG.debug("waitForClose: {} element technically exists, but is sized 0,0", element);
                             return true;
                         }
                         LOG.debug("waitForClose: {} element still exists at location {} with size {}: {}", selector, location, size, element.getText());
@@ -486,6 +489,7 @@ public class OpenNMSSeleniumTestCase {
     }
 
     protected ExpectedCondition<Boolean> pageContainsText(final String text) {
+        LOG.debug("pageContainsText: {}", text);
         final String escapedText = text.replace("\'", "\\\'");
         return new ExpectedCondition<Boolean>() {
             @Override public Boolean apply(final WebDriver driver) {
@@ -498,6 +502,7 @@ public class OpenNMSSeleniumTestCase {
     }
 
     protected void assertElementDoesNotExist(final By by) {
+        LOG.debug("assertElementDoesNotExist: {}", by);
         WebElement element = null;
         try {
             setImplicitWait(2, TimeUnit.SECONDS);
@@ -514,6 +519,7 @@ public class OpenNMSSeleniumTestCase {
     }
 
     protected void assertElementDoesNotHaveText(final By by, final String text) {
+        LOG.debug("assertElementDoesNotHaveText: locator={}, text={}", by, text);
         WebElement element = null;
         try {
             setImplicitWait(2, TimeUnit.SECONDS);
@@ -530,6 +536,7 @@ public class OpenNMSSeleniumTestCase {
     }
 
     protected void assertElementHasText(final By by, final String text) {
+        LOG.debug("assertElementHasText: locator={}, text={}", by, text);
         WebElement element;
         try {
             element = getDriver().findElement(by);
@@ -544,6 +551,7 @@ public class OpenNMSSeleniumTestCase {
     }
 
     protected String handleAlert(final String expectedText) {
+        LOG.debug("handleAlerm: expectedText={}", expectedText);
         try {
             final Alert alert = m_driver.switchTo().alert();
             final String alertText = alert.getText();
@@ -561,6 +569,7 @@ public class OpenNMSSeleniumTestCase {
     }
 
     protected void setChecked(final By by) {
+        LOG.debug("setChecked: locator=", by);
         final WebElement element = m_driver.findElement(by);
         if (element.isSelected()) {
             return;
@@ -570,6 +579,7 @@ public class OpenNMSSeleniumTestCase {
     }
 
     protected void setUnchecked(final By by) {
+        LOG.debug("setUnchecked: locator=", by);
         final WebElement element = m_driver.findElement(by);
         if (element.isSelected()) {
             element.click();
@@ -579,6 +589,8 @@ public class OpenNMSSeleniumTestCase {
     }
 
     protected void clickMenuItem(final String menuItemText, final String submenuItemText, final String submenuItemHref) {
+        LOG.debug("clickMenuItem: itemText={}, submenuItemText={}, submenuHref={}", menuItemText, submenuItemText, submenuItemHref);
+
         final Actions action = new Actions(m_driver);
 
         final WebElement menuElement;
@@ -615,73 +627,90 @@ public class OpenNMSSeleniumTestCase {
     }
 
     protected void frontPage() {
+        LOG.debug("navigating to the front page");
         m_driver.get(BASE_URL + "opennms/");
         m_driver.findElement(By.id("index-contentleft"));
     }
 
     public void adminPage() {
+        LOG.debug("navigating to the admin page");
         m_driver.get(BASE_URL + "opennms/admin/index.jsp");
     }
 
     protected void nodePage() {
+        LOG.debug("navigating to the node page");
         m_driver.get(BASE_URL + "opennms/element/nodeList.htm");
     }
 
     protected void notificationsPage() {
+        LOG.debug("navigating to the notifications page");
         m_driver.get(BASE_URL + "opennms/notification/index.jsp");
     }
 
     protected void outagePage() {
+        LOG.debug("navigating to the outage page");
         m_driver.get(BASE_URL + "opennms/outage/index.jsp");
     }
 
     protected void provisioningPage() {
+        LOG.debug("navigating to the provisioning page");
         m_driver.get(BASE_URL + "opennms/admin/index.jsp");
         m_driver.findElement(By.linkText("Manage Provisioning Requisitions")).click();
     }
 
+    protected void remotingPage() {
+        LOG.debug("navigating to the remoting page");
+        m_driver.get(BASE_URL + "opennms-remoting/index.html");
+    }
+
     protected void reportsPage() {
+        LOG.debug("navigating to the reports page");
         m_driver.get(BASE_URL + "opennms/report/index.jsp");
     }
 
     protected void searchPage() {
+        LOG.debug("navigating to the search page");
         m_driver.get(BASE_URL + "opennms/element/index.jsp");
     }
 
     protected void supportPage() {
+        LOG.debug("navigating to the support page");
         m_driver.get(BASE_URL + "opennms/support/index.htm");
     }
 
-    protected void remotingPage() {
-        m_driver.get(BASE_URL + "opennms-remoting/index.html");
-    }
-
     protected void goBack() {
-        LOG.warn("goBack() is supposedly not supported on Safari!");
+        LOG.warn("hitting the 'back' button");
         m_driver.navigate().back();
     }
 
     public WebElement findElementById(final String id) {
+        LOG.debug("findElementById: id={}", id);
         return m_driver.findElement(By.id(id));
     }
 
     public WebElement findElementByLink(final String link) {
+        LOG.debug("findElementByLink: link={}", link);
         return m_driver.findElement(By.linkText(link));
     }
 
     public WebElement findElementByName(final String name) {
+        LOG.debug("findElementByName: name={}", name);
         return m_driver.findElement(By.name(name));
     }
 
     public WebElement findElementByCss(final String css) {
+        LOG.debug("findElementByCss: selector={}", css);
         return m_driver.findElement(By.cssSelector(css));
     }
 
     public WebElement findElementByXpath(final String xpath) {
+        LOG.debug("findElementByXpath: selector={}", xpath);
         return m_driver.findElement(By.xpath(xpath));
     }
 
     public int countElementsMatchingCss(final String css) throws InstantiationException, IllegalAccessException, ClassNotFoundException {
+        LOG.debug("countElementsMatchingCss: selector={}", css);
+
         // Selenium has a bug where the findElements(By) doesn't return elements; even if I attempt to do it manually
         // using JavascriptExecutor.execute(), so... parse the DOM on the Java side instead.  :/
         final org.jsoup.nodes.Document doc = Jsoup.parse(m_driver.getPageSource());
@@ -746,6 +775,8 @@ public class OpenNMSSeleniumTestCase {
     }
 
     protected static WebElement scrollToElement(final WebDriver driver, final WebElement element) {
+        LOG.debug("scrollToElement: element={}", element);
+
         final List<Integer> bounds = getBoundedRectangleOfElement(driver, element);
         final int windowHeight = driver.manage().window().getSize().getHeight();
         final JavascriptExecutor je = (JavascriptExecutor)driver;
@@ -755,10 +786,11 @@ public class OpenNMSSeleniumTestCase {
 
     @SuppressWarnings("unchecked")
     protected static List<Integer> getBoundedRectangleOfElement(final WebDriver driver, final WebElement we) {
+        LOG.debug("getBoundedRectangleOfElement: element={}", we);
         final JavascriptExecutor je = (JavascriptExecutor)driver;
         final List<String> bounds = (ArrayList<String>) je.executeScript(
-                                                                         "var rect = arguments[0].getBoundingClientRect();" +
-                                                                                 "return [ '' + parseInt(rect.left), '' + parseInt(rect.top), '' + parseInt(rect.width), '' + parseInt(rect.height) ]", we);
+            "var rect = arguments[0].getBoundingClientRect();" +
+            "return [ '' + parseInt(rect.left), '' + parseInt(rect.top), '' + parseInt(rect.width), '' + parseInt(rect.height) ]", we);
         final List<Integer> ret = new ArrayList<>();
         for (final String entry : bounds) {
             ret.add(Integer.valueOf(entry));
@@ -771,6 +803,7 @@ public class OpenNMSSeleniumTestCase {
     }
 
     protected void clickId(final String id, final boolean refresh) throws InterruptedException {
+        LOG.debug("clickElement: id={}, refresh={}", id, refresh);
         WebElement element = null;
         try {
             setImplicitWait(10, TimeUnit.MILLISECONDS);
@@ -881,6 +914,7 @@ public class OpenNMSSeleniumTestCase {
     }
 
     public boolean requisitionExists(final String foreignSource) {
+        LOG.debug("requisitionExists: foreignSource={}", foreignSource);
         try {
             final String foreignSourceUrlFragment = URLEncoder.encode(foreignSource, "UTF-8");
             final Integer status = doRequest(new HttpGet(BASE_URL + "opennms/rest/requisitions/" + foreignSourceUrlFragment));
@@ -929,6 +963,7 @@ public class OpenNMSSeleniumTestCase {
 
     @Deprecated
     protected WebElement getForeignSourceElement(final String requisitionName) {
+        LOG.debug("getForeignSourceElement: requisition={}", requisitionName);
         final String selector = "//span[@data-foreignSource='" + requisitionName + "']";
         WebElement foreignSourceElement = null;
         try {
@@ -949,6 +984,7 @@ public class OpenNMSSeleniumTestCase {
     }
 
     protected void createRequisition(final String foreignSource) {
+        LOG.debug("Creating empty requisition: " + foreignSource);
         try {
             final String emptyRequisition = "<model-import xmlns=\"http://xmlns.opennms.org/xsd/config/model-import\" date-stamp=\"2013-03-29T11:36:55.901-04:00\" foreign-source=\"" + foreignSource + "\" last-import=\"2016-03-29T10:40:23.947-04:00\"></model-import>";
             final String foreignSourceUrlFragment = URLEncoder.encode(foreignSource, "UTF-8");
@@ -972,10 +1008,12 @@ public class OpenNMSSeleniumTestCase {
     }
 
     protected void deleteTestUser() throws Exception {
+        LOG.debug("deleteTestUser()");
         doRequest(new HttpDelete(BASE_URL + "opennms/rest/users/" + USER_NAME));
     }
 
     protected void deleteTestGroup() throws Exception {
+        LOG.debug("deleteTestGroup()");
         doRequest(new HttpDelete(BASE_URL + "opennms/rest/groups/" + GROUP_NAME));
     }
 
@@ -1009,6 +1047,7 @@ public class OpenNMSSeleniumTestCase {
 
     @Deprecated
     protected long getNodesInRequisition(final WebElement element) {
+        LOG.debug("getNodesInRequisition: element={}", element);
         try {
             final WebElement match = element.findElement(By.xpath("//span[@data-requisitionedNodes]"));
             final String nodes = match.getAttribute("data-requisitionedNodes");
@@ -1025,6 +1064,7 @@ public class OpenNMSSeleniumTestCase {
 
     @Deprecated
     protected long getNodesInDatabase(final WebElement element) {
+        LOG.debug("getNodesInDatabase: element={}", element);
         try {
             final WebElement match = element.findElement(By.xpath("//span[@data-databaseNodes]"));
             final String nodes = match.getAttribute("data-databaseNodes");
@@ -1044,6 +1084,7 @@ public class OpenNMSSeleniumTestCase {
     }
 
     protected void sendPost(final String urlFragment, final String body, final Integer expectedResponse) throws ClientProtocolException, IOException, InterruptedException {
+        LOG.debug("sendPost: url={}, expectedResponse={}, body={}", urlFragment, expectedResponse, body);
         final HttpPost post = new HttpPost(BASE_URL + "opennms" + (urlFragment.startsWith("/")? urlFragment : "/" + urlFragment));
         post.setEntity(new StringEntity(body, ContentType.APPLICATION_XML));
         final Integer response = doRequest(post);
@@ -1063,6 +1104,7 @@ public class OpenNMSSeleniumTestCase {
     }
 
     protected void sendDelete(final String urlFragment, final Integer expectedResponse) throws ClientProtocolException, IOException, InterruptedException {
+        LOG.debug("sendDelete: url={}, expectedResponse={}", urlFragment, expectedResponse);
         final HttpDelete del = new HttpDelete(BASE_URL + "opennms" + (urlFragment.startsWith("/") ? urlFragment : "/" + urlFragment));
         final Integer response = doRequest(del);
         if (expectedResponse == null) {
@@ -1081,13 +1123,13 @@ public class OpenNMSSeleniumTestCase {
         private final int m_numberToMatch;
 
         public WaitForNodesInDatabase(int numberOfNodes) {
-            m_foreignSource = REQUISITION_NAME;
-            m_numberToMatch = numberOfNodes;
+            this(REQUISITION_NAME, numberOfNodes);
         }
 
         public WaitForNodesInDatabase(final String foreignSource, int numberOfNodes) {
             m_foreignSource = foreignSource;
             m_numberToMatch = numberOfNodes;
+            LOG.debug("WaitForNodesInDatabase: foreignSource={}, expectedNodes={}", foreignSource, numberOfNodes);
         }
 
         @Override
@@ -1107,6 +1149,7 @@ public class OpenNMSSeleniumTestCase {
 
         public WaitForNodesInRequisition(int numberOfNodes) {
             m_numberToMatch = numberOfNodes;
+            LOG.debug("WaitForNodesInRequisition: expectedNodes={}", numberOfNodes);
         }
 
         @Override
