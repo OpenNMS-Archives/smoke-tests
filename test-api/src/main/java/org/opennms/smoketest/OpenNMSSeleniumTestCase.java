@@ -893,6 +893,7 @@ public class OpenNMSSeleniumTestCase {
     public void deleteExistingRequisition(final String foreignSource) {
         LOG.debug("deleteExistingRequisition: Deleting Requisition: {}", foreignSource);
 
+        final long waitUntil = System.currentTimeMillis() + (5 * 60 * 1000);
         do {
             long nodesInRequisition = -1;
             long nodesInDatabase = -1;
@@ -916,8 +917,12 @@ public class OpenNMSSeleniumTestCase {
                     sendDelete("/rest/foreignSources/" + foreignSourceUrlFragment);
                     sendDelete("/rest/foreignSources/deployed/" + foreignSourceUrlFragment);
                 }
+                Thread.sleep(1000);
             } catch (final IOException | InterruptedException e1) {
                 throw new OpenNMSTestException(e1);
+            }
+            if (System.currentTimeMillis() > waitUntil) {
+                throw new OpenNMSTestException("Gave up waiting to delete requisition '" + foreignSource + "'.  This should totally not happen.");
             }
         } while (requisitionExists(foreignSource));
     }
