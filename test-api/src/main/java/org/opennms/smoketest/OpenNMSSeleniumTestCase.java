@@ -81,6 +81,7 @@ import org.openqa.selenium.Alert;
 import org.openqa.selenium.By;
 import org.openqa.selenium.Dimension;
 import org.openqa.selenium.JavascriptExecutor;
+import org.openqa.selenium.Keys;
 import org.openqa.selenium.NoAlertPresentException;
 import org.openqa.selenium.NoSuchElementException;
 import org.openqa.selenium.OutputType;
@@ -759,9 +760,11 @@ public class OpenNMSSeleniumTestCase {
         element.sendKeys(text);
         i = 0;
 
-        while (!textString.equals(element.getAttribute("value")) && (i++ < 100)) {
-            LOG.debug("element value ({}) != text ({})", element.getAttribute("value"), textString);
-            try { Thread.sleep(200); } catch (InterruptedException e) {}
+        if (text.length == 1 && text[0] != Keys.ENTER) { // special case, carriage-return for a previously-entered entry
+            while (!textString.equals(element.getAttribute("value")) && (i++ < 100)) {
+                LOG.debug("element value ({}) != text ({})", element.getAttribute("value"), textString);
+                try { Thread.sleep(200); } catch (InterruptedException e) {}
+            }
         }
         return element;
     }
