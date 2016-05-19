@@ -526,7 +526,7 @@ sub get_installed_packages {
 
 sub karaf {
 	my $outputfile = shift;
-	my @command = $@;
+	my @command = @_;
 
 	my $in        = IO::Handle->new();
 	my $out       = IO::Handle->new();
