@@ -246,6 +246,20 @@ sub start_opennms {
 		my $status = `"$opennms" status`;
 		if ($status =~ /opennms is running/) {
 			print "done\n";
+
+			print "- checking Karaf bundles and features... ";
+			my $targetdir = File::Spec->catdir($OPENNMS_TESTDIR, 'target', 'opennms-logs');
+			mkpath($targetdir);
+
+			if (-x '/usr/bin/sshpass') {
+				my @sshpass = qw(/usr/bin/sshpass -p admin ssh admin@localhost -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -p 8101);
+				karaf(File::Spec->catfile($targetdir, 'karaf-bundles.log'), @sshpass, "list -t 0");
+				karaf(File::Spec->catfile($targetdir, 'karaf-features.log'), @sshpass, "features:list -o");
+				print "done\n";
+			} else {
+				print "failed, sshpass is missing\n";
+			}
+
 			return 1;
 		}
 		sleep(1);
@@ -494,7 +508,8 @@ sub get_installed_packages {
 	my $err = IO::Handle->new();
 
 	# yum list --showduplicates --color=never installed \*opennms\*
-	my $pid = open3($in, $out, $err, 'yum', 'list', '--showduplicates', '--color=never', 'installed');
+	my $pid = open3($in, $out, $err, 'yum', 'list', '--showduplicates', '--color=never', 'installed') or die "Can't run yum list: $!\n";
+	close($in) or die "Unable to close STDIN: $!\n";
 	my @packages;
 	while (my $line = <$out>) {
 		chomp($line);
@@ -503,5 +518,43 @@ sub get_installed_packages {
 		push(@packages, $package);
 	}
 	waitpid($pid, 0);
+
+	close($out) or die "Unable to close STDOUT: $!\n";
+	close($err) or die "Unable to close STDERR: $!\n";
 	return @packages;
+}
+
+sub karaf {
+	my $outputfile = shift;
+	my @command = $@;
+
+	my $in        = IO::Handle->new();
+	my $out       = IO::Handle->new();
+	my $err       = IO::Handle->new();
+	my $output    = IO::Handle->new();
+	my $outputerr = IO::Handle->new();
+
+	open($output,    '>', $outputfile . '.out') or die "Can't write to $outputfile.out: $!\n";
+	open($outputerr, '>', $outputfile . '.err') or die "Can't write to $outputfile.err: $!\n";
+
+	my $pid = open3($in, $out, $err, @command) or die "Can't run @command: $!\n";
+	close($in) or die "Unable to close STDIN: $!\n";
+
+	while (my $line = <$out>) {
+		print $output $line;
+	}
+
+	while (my $line = <$err>) {
+		print $outputerr $line;
+	}
+
+	waitpid($pid, 0);
+
+	close($output)    or die "Unable to close $outputfile.out: $!\n";
+	close($outputerr) or die "Unable to close $outputfile.err: $!\n";
+
+	close($out) or die "Unable to close STDOUT: $!\n";
+	close($err) or die "Unable to close STDERR: $!\n";
+
+	return 1;
 }
