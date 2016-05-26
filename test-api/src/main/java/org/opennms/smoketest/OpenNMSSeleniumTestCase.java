@@ -41,6 +41,7 @@ import java.net.URI;
 import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
@@ -74,9 +75,13 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
 import org.jsoup.Jsoup;
 import org.jsoup.select.Elements;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.rules.TestWatcher;
 import org.junit.runner.Description;
+import org.opennms.test.system.api.NewTestEnvironment.ContainerAlias;
+import org.opennms.test.system.api.TestEnvironment;
+import org.opennms.test.system.api.TestEnvironmentBuilder;
 import org.openqa.selenium.Alert;
 import org.openqa.selenium.By;
 import org.openqa.selenium.Dimension;
@@ -118,6 +123,29 @@ public class OpenNMSSeleniumTestCase {
     private static final Logger LOG = LoggerFactory.getLogger(OpenNMSSeleniumTestCase.class);
     private static final String APACHE_LOG_LEVEL = "INFO"; // change this to help debug smoke tests
 
+    private static boolean m_useDocker = true;
+    private static TestEnvironment m_testEnvironment = null;
+
+    @ClassRule
+    public static final TestEnvironment getTestEnvironment() {
+        if (m_useDocker) {
+            LOG.warn("Setting up Docker test environment.");
+            try {
+                final TestEnvironmentBuilder builder = TestEnvironment.builder().opennms();
+                builder.optIn(false);
+                builder.addFile(OpenNMSSeleniumTestCase.class.getResource("etc/monitoring-locations.xml"), "etc/monitoring-locations.xml");
+                m_testEnvironment = builder.build();
+            } catch (final Throwable t) {
+                throw new RuntimeException(t);
+            }
+        }
+        if (m_testEnvironment == null) {
+            LOG.warn("Setting up local test environment.");
+            m_testEnvironment = new LocalTestEnvironment();
+        }
+        return m_testEnvironment;
+    }
+
     private static final boolean setLevel(final String pack, final String level) {
         final Logger logger = org.slf4j.LoggerFactory.getLogger(pack);
         if (logger instanceof ch.qos.logback.classic.Logger) {
@@ -132,14 +160,12 @@ public class OpenNMSSeleniumTestCase {
 
         /* Set up the mock log appender, if it is in the classpath */
         final Properties props = new Properties();
+        props.put("log4j.logger.org.apache.cxf", APACHE_LOG_LEVEL);
+        props.put("log4j.logger.org.apache.cxf.phase.PhaseInterceptorChain", "ERROR");
         props.put("log4j.logger.org.apache.http", APACHE_LOG_LEVEL);
         try {
             final Class<?> mockLogAppender = Class.forName("org.opennms.core.test.MockLogAppender");
             if (mockLogAppender != null) {
-                final Method[] methods = mockLogAppender.getMethods();
-                for (final Method method : methods) {
-                    System.err.println("method=" + method);
-                }
                 final Method m = mockLogAppender.getMethod("setupLogging", Boolean.TYPE, String.class, Properties.class);
                 if (m != null) {
                     m.invoke(null, true, logLevel, props);
@@ -151,10 +177,14 @@ public class OpenNMSSeleniumTestCase {
 
         /* Set up apache commons directly, if possible */
         System.setProperty("org.apache.commons.logging.Log", "org.apache.commons.logging.impl.SimpleLog");
+        System.setProperty("org.apache.commons.logging.simplelog.log.org.apache.cxf", APACHE_LOG_LEVEL);
+        System.setProperty("org.apache.commons.logging.simplelog.log.org.apache.cxf.phase.PhaseInterceptorChain", "ERROR");
         System.setProperty("org.apache.commons.logging.simplelog.log.org.apache.http", APACHE_LOG_LEVEL);
 
         /* Set up logback, if it's there */
         setLevel(ch.qos.logback.classic.Logger.ROOT_LOGGER_NAME, logLevel);
+        setLevel("org.apache.cxf", APACHE_LOG_LEVEL);
+        setLevel("org.apache.cxf.phase.PhaseInterceptorChain", "ERROR");
         setLevel("org.apache.http", APACHE_LOG_LEVEL);
     }
 
@@ -170,15 +200,10 @@ public class OpenNMSSeleniumTestCase {
 
     public static final long   LOAD_TIMEOUT       = Long.getLong("org.opennms.smoketest.web-timeout", 120000l);
     public static final long   REQ_TIMEOUT        = Long.getLong("org.opennms.smoketest.requisition-timeout", 240000l);
-    public static final String OPENNMS_WEB_HOST   = System.getProperty("org.opennms.smoketest.web-host", "localhost");
-    public static final int    OPENNMS_WEB_PORT   = Integer.getInteger("org.opennms.smoketest.web-port", 8980);
-    public static final String OPENNMS_EVENT_HOST = System.getProperty("org.opennms.smoketest.event-host", OPENNMS_WEB_HOST);
-    public static final int    OPENNMS_EVENT_PORT = Integer.getInteger("org.opennms.smoketest.event-port", 5817);
 
     public static final String BASIC_AUTH_USERNAME = "admin";
     public static final String BASIC_AUTH_PASSWORD = "admin";
 
-    public static final String BASE_URL           = "http://" + OPENNMS_WEB_HOST + ":" + OPENNMS_WEB_PORT + "/";
     public static final String REQUISITION_NAME   = "SeleniumTestGroup";
     public static final String USER_NAME          = "SmokeTestUser";
     public static final String GROUP_NAME         = "SmokeTestGroup";
@@ -189,6 +214,27 @@ public class OpenNMSSeleniumTestCase {
     protected WebDriver m_driver = null;
     protected WebDriverWait wait = null;
     protected WebDriverWait requisitionWait = null;
+
+    public String getServerAddress() {
+        return m_testEnvironment.getServiceAddress(ContainerAlias.OPENNMS, 8980).getAddress().getHostAddress();
+    }
+    public int getServerHttpPort() {
+        return m_testEnvironment.getServiceAddress(ContainerAlias.OPENNMS, 8980).getPort();
+    }
+    public int getServerEventPort() {
+        return m_testEnvironment.getServiceAddress(ContainerAlias.OPENNMS, 5817).getPort();
+    }
+    public String getBaseUrl() {
+        return new StringBuilder()
+                .append("http://").append(getServerAddress())
+                .append(":").append(getServerHttpPort()).append("/")
+                .toString();
+    }
+
+    public String createBasicAuthHeader() {
+        final String authString = String.format("%s:%s", BASIC_AUTH_USERNAME, BASIC_AUTH_PASSWORD);
+        return "Basic " + new String(Base64.getEncoder().encode(authString.getBytes()));
+    }
 
     @Rule
     public TestWatcher m_watcher = new TestWatcher() {
@@ -203,7 +249,7 @@ public class OpenNMSSeleniumTestCase {
                 wait = new WebDriverWait(m_driver, TimeUnit.SECONDS.convert(LOAD_TIMEOUT, TimeUnit.MILLISECONDS));
                 requisitionWait = new WebDriverWait(m_driver, TimeUnit.SECONDS.convert(REQ_TIMEOUT, TimeUnit.MILLISECONDS));
 
-                m_driver.get(BASE_URL + "opennms/login.jsp");
+                m_driver.get(getBaseUrl() + "opennms/login.jsp");
 
                 // Wait until the login form is complete
                 wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("j_username")));
@@ -273,7 +319,7 @@ public class OpenNMSSeleniumTestCase {
             LOG.debug("Shutting down Selenium.");
             if (m_driver != null) {
                 try {
-                    m_driver.get(BASE_URL + "opennms/j_spring_security_logout");
+                    m_driver.get(getBaseUrl() + "opennms/j_spring_security_logout");
                 } catch (final SeleniumException e) {
                     // don't worry about it, this is just for logging out
                 }
@@ -629,54 +675,54 @@ public class OpenNMSSeleniumTestCase {
 
     protected void frontPage() {
         LOG.debug("navigating to the front page");
-        m_driver.get(BASE_URL + "opennms/");
+        m_driver.get(getBaseUrl() + "opennms/");
         m_driver.findElement(By.id("index-contentleft"));
     }
 
     public void adminPage() {
         LOG.debug("navigating to the admin page");
-        m_driver.get(BASE_URL + "opennms/admin/index.jsp");
+        m_driver.get(getBaseUrl() + "opennms/admin/index.jsp");
     }
 
     protected void nodePage() {
         LOG.debug("navigating to the node page");
-        m_driver.get(BASE_URL + "opennms/element/nodeList.htm");
+        m_driver.get(getBaseUrl() + "opennms/element/nodeList.htm");
     }
 
     protected void notificationsPage() {
         LOG.debug("navigating to the notifications page");
-        m_driver.get(BASE_URL + "opennms/notification/index.jsp");
+        m_driver.get(getBaseUrl() + "opennms/notification/index.jsp");
     }
 
     protected void outagePage() {
         LOG.debug("navigating to the outage page");
-        m_driver.get(BASE_URL + "opennms/outage/index.jsp");
+        m_driver.get(getBaseUrl() + "opennms/outage/index.jsp");
     }
 
     protected void provisioningPage() {
         LOG.debug("navigating to the provisioning page");
-        m_driver.get(BASE_URL + "opennms/admin/index.jsp");
+        m_driver.get(getBaseUrl() + "opennms/admin/index.jsp");
         m_driver.findElement(By.linkText("Manage Provisioning Requisitions")).click();
     }
 
     protected void remotingPage() {
         LOG.debug("navigating to the remoting page");
-        m_driver.get(BASE_URL + "opennms-remoting/index.html");
+        m_driver.get(getBaseUrl() + "opennms-remoting/index.html");
     }
 
     protected void reportsPage() {
         LOG.debug("navigating to the reports page");
-        m_driver.get(BASE_URL + "opennms/report/index.jsp");
+        m_driver.get(getBaseUrl() + "opennms/report/index.jsp");
     }
 
     protected void searchPage() {
         LOG.debug("navigating to the search page");
-        m_driver.get(BASE_URL + "opennms/element/index.jsp");
+        m_driver.get(getBaseUrl() + "opennms/element/index.jsp");
     }
 
     protected void supportPage() {
         LOG.debug("navigating to the support page");
-        m_driver.get(BASE_URL + "opennms/support/index.htm");
+        m_driver.get(getBaseUrl() + "opennms/support/index.htm");
     }
 
     protected void goBack() {
@@ -902,7 +948,7 @@ public class OpenNMSSeleniumTestCase {
 
     public long getNodesInDatabase(final String foreignSource) {
         try {
-            final HttpGet request = new HttpGet(BASE_URL + "opennms/rest/nodes?foreignSource=" + URLEncoder.encode(foreignSource, "UTF-8"));
+            final HttpGet request = new HttpGet(getBaseUrl() + "opennms/rest/nodes?foreignSource=" + URLEncoder.encode(foreignSource, "UTF-8"));
             final ResponseData rd = getRequest(request);
             LOG.debug("getNodesInDatabase: response={}", rd);
 
@@ -920,7 +966,7 @@ public class OpenNMSSeleniumTestCase {
         LOG.debug("requisitionExists: foreignSource={}", foreignSource);
         try {
             final String foreignSourceUrlFragment = URLEncoder.encode(foreignSource, "UTF-8");
-            final Integer status = doRequest(new HttpGet(BASE_URL + "opennms/rest/requisitions/" + foreignSourceUrlFragment));
+            final Integer status = doRequest(new HttpGet(getBaseUrl() + "opennms/rest/requisitions/" + foreignSourceUrlFragment));
             return status == 200;
         } catch (final IOException | InterruptedException e) {
             throw new OpenNMSTestException(e);
@@ -995,7 +1041,7 @@ public class OpenNMSSeleniumTestCase {
             sendPost("/rest/requisitions", emptyRequisition);
             requisitionWait.until(new WaitForNodesInRequisition(0));
 
-            final HttpPut request = new HttpPut(BASE_URL + "opennms/rest/requisitions/" + foreignSourceUrlFragment + "/import");
+            final HttpPut request = new HttpPut(getBaseUrl() + "opennms/rest/requisitions/" + foreignSourceUrlFragment + "/import");
             final Integer status = doRequest(request);
             if (status == null || status < 200 || status >= 400) {
                 throw new OpenNMSTestException("Unknown status: " + status);
@@ -1012,17 +1058,17 @@ public class OpenNMSSeleniumTestCase {
 
     protected void deleteTestUser() throws Exception {
         LOG.debug("deleteTestUser()");
-        doRequest(new HttpDelete(BASE_URL + "opennms/rest/users/" + USER_NAME));
+        doRequest(new HttpDelete(getBaseUrl() + "opennms/rest/users/" + USER_NAME));
     }
 
     protected void deleteTestGroup() throws Exception {
         LOG.debug("deleteTestGroup()");
-        doRequest(new HttpDelete(BASE_URL + "opennms/rest/groups/" + GROUP_NAME));
+        doRequest(new HttpDelete(getBaseUrl() + "opennms/rest/groups/" + GROUP_NAME));
     }
 
     protected long getNodesInRequisition(final String foreignSource) {
         try {
-            final HttpGet request = new HttpGet(BASE_URL + "opennms/rest/requisitions/" + URLEncoder.encode(foreignSource, "UTF-8"));
+            final HttpGet request = new HttpGet(getBaseUrl() + "opennms/rest/requisitions/" + URLEncoder.encode(foreignSource, "UTF-8"));
             final ResponseData rd = getRequest(request);
             LOG.debug("getNodesInRequisition: response={}", rd);
 
@@ -1088,7 +1134,7 @@ public class OpenNMSSeleniumTestCase {
 
     protected void sendPost(final String urlFragment, final String body, final Integer expectedResponse) throws ClientProtocolException, IOException, InterruptedException {
         LOG.debug("sendPost: url={}, expectedResponse={}, body={}", urlFragment, expectedResponse, body);
-        final HttpPost post = new HttpPost(BASE_URL + "opennms" + (urlFragment.startsWith("/")? urlFragment : "/" + urlFragment));
+        final HttpPost post = new HttpPost(getBaseUrl() + "opennms" + (urlFragment.startsWith("/")? urlFragment : "/" + urlFragment));
         post.setEntity(new StringEntity(body, ContentType.APPLICATION_XML));
         final Integer response = doRequest(post);
         if (expectedResponse == null) {
@@ -1108,7 +1154,7 @@ public class OpenNMSSeleniumTestCase {
 
     protected void sendDelete(final String urlFragment, final Integer expectedResponse) throws ClientProtocolException, IOException, InterruptedException {
         LOG.debug("sendDelete: url={}, expectedResponse={}", urlFragment, expectedResponse);
-        final HttpDelete del = new HttpDelete(BASE_URL + "opennms" + (urlFragment.startsWith("/") ? urlFragment : "/" + urlFragment));
+        final HttpDelete del = new HttpDelete(getBaseUrl() + "opennms" + (urlFragment.startsWith("/") ? urlFragment : "/" + urlFragment));
         final Integer response = doRequest(del);
         if (expectedResponse == null) {
             if (response == null || (response != 303 && response != 200 && response != 202 && response != 204)) {

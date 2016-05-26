@@ -5,7 +5,7 @@
   <name>OpenNMS Smoke Test</name>
   <groupId>org.opennms.smoke</groupId>
   <artifactId>org.opennms.smoke.test-api</artifactId>
-  <version>1-SNAPSHOT</version>
+  <version>2-SNAPSHOT</version>
 
   <properties>
     <opennmsVersion>17.1.1</opennmsVersion>
@@ -17,6 +17,11 @@
     <slf4jVersion>1.7.12</slf4jVersion>
   </properties>
   <dependencies>
+    <dependency>
+      <groupId>org.opennms.test</groupId>
+      <artifactId>org.opennms.test.system-api</artifactId>
+      <version>1-SNAPSHOT</version>
+    </dependency>
     <dependency>
       <groupId>org.seleniumhq.selenium</groupId>
       <artifactId>selenium-java</artifactId>
@@ -123,8 +128,8 @@
         <artifactId>maven-compiler-plugin</artifactId>
         <version>3.3</version>
         <configuration>
-         <source>1.7</source>
-         <target>1.7</target>
+         <source>1.8</source>
+         <target>1.8</target>
          <encoding>UTF-8</encoding>
          <optimize>true</optimize>
         </configuration>
