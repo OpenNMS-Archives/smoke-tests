@@ -1070,7 +1070,7 @@ public class OpenNMSSeleniumTestCase {
         try {
             sendPost("/rest/foreignSources", xml);
             // make sure it gets written to disk
-            doRequest(new HttpGet(BASE_URL + "/rest/foreignSources"));
+            doRequest(new HttpGet(getBaseUrl() + "/rest/foreignSources"));
             Thread.sleep(2000);
         } catch (final Exception e) {
             throw new OpenNMSTestException(e);
