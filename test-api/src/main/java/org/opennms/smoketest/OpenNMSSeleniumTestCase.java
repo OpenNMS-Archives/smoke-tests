@@ -838,8 +838,8 @@ public class OpenNMSSeleniumTestCase {
         LOG.debug("getBoundedRectangleOfElement: element={}", we);
         final JavascriptExecutor je = (JavascriptExecutor)driver;
         final List<String> bounds = (ArrayList<String>) je.executeScript(
-            "var rect = arguments[0].getBoundingClientRect();" +
-            "return [ '' + parseInt(rect.left), '' + parseInt(rect.top), '' + parseInt(rect.width), '' + parseInt(rect.height) ]", we);
+                                                                         "var rect = arguments[0].getBoundingClientRect();" +
+                                                                                 "return [ '' + parseInt(rect.left), '' + parseInt(rect.top), '' + parseInt(rect.width), '' + parseInt(rect.height) ]", we);
         final List<Integer> ret = new ArrayList<>();
         for (final String entry : bounds) {
             ret.add(Integer.valueOf(entry));
@@ -1034,19 +1034,24 @@ public class OpenNMSSeleniumTestCase {
 
     protected void createRequisition(final String foreignSource) {
         LOG.debug("Creating empty requisition: " + foreignSource);
+        final String emptyRequisition = "<model-import xmlns=\"http://xmlns.opennms.org/xsd/config/model-import\" date-stamp=\"2013-03-29T11:36:55.901-04:00\" foreign-source=\"" + foreignSource + "\" last-import=\"2016-03-29T10:40:23.947-04:00\"></model-import>";
+        createRequisition(foreignSource, emptyRequisition, 0);
+    }
+
+    protected void createRequisition(final String foreignSource, final String xml, final int expectedNodes) {
+        LOG.debug("Creating requisition from XML: " + foreignSource);
         try {
-            final String emptyRequisition = "<model-import xmlns=\"http://xmlns.opennms.org/xsd/config/model-import\" date-stamp=\"2013-03-29T11:36:55.901-04:00\" foreign-source=\"" + foreignSource + "\" last-import=\"2016-03-29T10:40:23.947-04:00\"></model-import>";
             final String foreignSourceUrlFragment = URLEncoder.encode(foreignSource, "UTF-8");
 
-            sendPost("/rest/requisitions", emptyRequisition);
-            requisitionWait.until(new WaitForNodesInRequisition(0));
+            sendPost("/rest/requisitions", xml);
+            requisitionWait.until(new WaitForNodesInRequisition(expectedNodes));
 
             final HttpPut request = new HttpPut(getBaseUrl() + "opennms/rest/requisitions/" + foreignSourceUrlFragment + "/import");
             final Integer status = doRequest(request);
             if (status == null || status < 200 || status >= 400) {
                 throw new OpenNMSTestException("Unknown status: " + status);
             }
-            requisitionWait.until(new WaitForNodesInDatabase(0));
+            requisitionWait.until(new WaitForNodesInDatabase(expectedNodes));
         } catch (final Exception e) {
             throw new OpenNMSTestException(e);
         }
@@ -1054,6 +1059,36 @@ public class OpenNMSSeleniumTestCase {
 
     protected void deleteTestRequisition() throws Exception {
         deleteExistingRequisition(REQUISITION_NAME);
+    }
+
+    protected void createTestForeignSource(final String xml) {
+        createForeignSource(REQUISITION_NAME, xml);
+    }
+
+    protected void createForeignSource(final String foreignSource, final String xml) {
+        LOG.debug("Creating foreign source definition: {}", foreignSource);
+        try {
+            sendPost("/rest/foreignSources", xml);
+            // make sure it gets written to disk
+            doRequest(new HttpGet(BASE_URL + "/rest/foreignSources"));
+            Thread.sleep(2000);
+        } catch (final Exception e) {
+            throw new OpenNMSTestException(e);
+        }
+    }
+
+    protected void deleteTestForeignSource() {
+        deleteExistingForeignSource(REQUISITION_NAME);
+    }
+
+    protected void deleteExistingForeignSource(final String foreignSource) {
+        LOG.debug("Deleting foreign source definition: {}", foreignSource);
+        try {
+            final String foreignSourceUrlFragment = URLEncoder.encode(foreignSource, "UTF-8");
+            sendDelete("/rest/foreignSources/" + foreignSourceUrlFragment);
+        } catch (final Exception e) {
+            throw new OpenNMSTestException(e);
+        }
     }
 
     protected void deleteTestUser() throws Exception {
