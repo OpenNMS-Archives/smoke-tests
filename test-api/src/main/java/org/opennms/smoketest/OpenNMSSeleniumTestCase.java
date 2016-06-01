@@ -1138,7 +1138,7 @@ public class OpenNMSSeleniumTestCase {
         @Override
         public Boolean apply(final WebDriver input) {
             long nodes = getNodesInDatabase(m_foreignSource);
-            LOG.debug("WaitForNodesInDatabase: count={}", nodes);
+            LOG.debug("WaitForNodesInDatabase: foreignSource={}, count={}", m_foreignSource, nodes);
             if (nodes == m_numberToMatch) {
                 return true;
             } else {
@@ -1148,23 +1148,31 @@ public class OpenNMSSeleniumTestCase {
     }
 
     protected final class WaitForNodesInRequisition implements ExpectedCondition<Boolean> {
+        private final String m_foreignSource;
         private final int m_numberToMatch;
 
-        public WaitForNodesInRequisition(int numberOfNodes) {
+        public WaitForNodesInRequisition(final String foreignSource, int numberOfNodes) {
+            m_foreignSource = foreignSource;
             m_numberToMatch = numberOfNodes;
-            LOG.debug("WaitForNodesInRequisition: expectedNodes={}", numberOfNodes);
+            LOG.debug("WaitForNodesInRequisition: foreignSource={}, expectedNodes={}", foreignSource, numberOfNodes);
+        }
+
+        public WaitForNodesInRequisition(int numberOfNodes) {
+            m_foreignSource = REQUISITION_NAME;
+            m_numberToMatch = numberOfNodes;
+            LOG.debug("WaitForNodesInRequisition: foreignSource={}, expectedNodes={}", m_foreignSource, numberOfNodes);
         }
 
         @Override
         public Boolean apply(final WebDriver input) {
             try {
-                long nodes = getNodesInRequisition(REQUISITION_NAME);
-                LOG.debug("WaitForNodesInRequisition: count={}", nodes);
+                long nodes = getNodesInRequisition(m_foreignSource);
+                LOG.debug("WaitForNodesInRequisition: foreignSource={}, count={}", m_foreignSource, nodes);
                 if (nodes == m_numberToMatch) {
                     return true;
                 }
             } catch (final Exception e) {
-                LOG.warn("Failed to get nodes in requisition.", e);
+                LOG.warn("Failed to get nodes in requisition {}.", m_foreignSource, e);
             }
             return null;
         }
