@@ -1157,13 +1157,16 @@ public class OpenNMSSeleniumTestCase {
 
         @Override
         public Boolean apply(final WebDriver input) {
-            long nodes = getNodesInRequisition(REQUISITION_NAME);
-            LOG.debug("WaitForNodesInRequisition: count={}", nodes);
-            if (nodes == m_numberToMatch) {
-                return true;
-            } else {
-                return null;
+            try {
+                long nodes = getNodesInRequisition(REQUISITION_NAME);
+                LOG.debug("WaitForNodesInRequisition: count={}", nodes);
+                if (nodes == m_numberToMatch) {
+                    return true;
+                }
+            } catch (final Exception e) {
+                LOG.warn("Failed to get nodes in requisition.", e);
             }
+            return null;
         }
     }
 }
