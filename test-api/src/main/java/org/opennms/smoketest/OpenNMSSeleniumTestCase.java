@@ -45,6 +45,7 @@ import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -96,6 +97,8 @@ import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.firefox.FirefoxDriver;
 import org.openqa.selenium.interactions.Actions;
+import org.openqa.selenium.logging.LogEntries;
+import org.openqa.selenium.logging.LogEntry;
 import org.openqa.selenium.phantomjs.PhantomJSDriver;
 import org.openqa.selenium.phantomjs.PhantomJSDriverService;
 import org.openqa.selenium.remote.DesiredCapabilities;
@@ -111,12 +114,13 @@ import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
 
 import com.google.common.base.Joiner;
+import com.google.common.base.Predicate;
 import com.google.common.io.Files;
 import com.thoughtworks.selenium.SeleniumException;
 
 public class OpenNMSSeleniumTestCase {
     private static final Logger LOG = LoggerFactory.getLogger(OpenNMSSeleniumTestCase.class);
-    private static final String APACHE_LOG_LEVEL = "INFO"; // change this to help debug smoke tests
+    private static final String APACHE_LOG_LEVEL = "DEBUG"; // change this to help debug smoke tests
 
     private static final boolean setLevel(final String pack, final String level) {
         final Logger logger = org.slf4j.LoggerFactory.getLogger(pack);
@@ -264,6 +268,20 @@ public class OpenNMSSeleniumTestCase {
             LOG.debug("Current URL: {}", m_driver.getCurrentUrl());
             m_driver.navigate().back();
             LOG.debug("Previous URL: {}", m_driver.getCurrentUrl());
+            LogEntries logs = m_driver.manage().logs().get("browser");
+            for (final LogEntry entry : logs.getAll()) {
+                final int level = entry.getLevel().intValue();
+                final String msg = "BROWSER: " + entry.getMessage();
+                if (level >= Level.WARNING.intValue()) {
+                    LOG.warn(msg);
+                } else if (level >= Level.INFO.intValue()) {
+                    LOG.info(msg);
+                } else if (level >= Level.FINE.intValue()) {
+                    LOG.debug(msg);
+                } else {
+                    LOG.trace(msg);
+                }
+            }
         }
 
         @Override
@@ -724,10 +742,6 @@ public class OpenNMSSeleniumTestCase {
         //return getDriver().findElements(By.cssSelector(css)).size();
     }
 
-    protected WebElement enterText(final By selector, final CharSequence... text) {
-        return enterText(m_driver, selector, text);
-    }
-
     /**
      * CAUTION: There are a variety of Firefox-specific bugs related to using
      * {@link WebElement#sendKeys(CharSequence...)}. We're doing this bizarre
@@ -736,37 +750,50 @@ public class OpenNMSSeleniumTestCase {
      * @see https://code.google.com/p/selenium/issues/detail?id=2487
      * @see https://code.google.com/p/selenium/issues/detail?id=8180
      */
-    protected static WebElement enterText(final WebDriver driver, final By selector, final CharSequence... text) {
+    protected WebElement enterText(final By selector, final CharSequence... text) {
         final String textString = Joiner.on("").join(text);
         LOG.debug("Enter text: '{}' into selector: {}", text, selector);
-        WebElement element = driver.findElement(selector);
+        WebElement element = m_driver.findElement(selector);
 
-        // Clear the element content
+        // Clear the element content and then confirm it's really clear
         element.clear();
-
-        // Because clear() seems to be async, verify that it worked before
-        // continuing so that we don't erase the value
-        int i = 0;
-        while (!"".equals(element.getAttribute("value").trim()) && (i++ < 100)) {
-            try { Thread.sleep(200); } catch (InterruptedException e) {}
-        }
+        waitForValue(selector, "");
 
         // Focus on the element before typing
-        scrollToElement(driver, element);
+        scrollToElement(m_driver, element);
         element.click();
-        // Again, focus on the element before typing
+        sleep(500);
+        // Do it a second time because there can be timing issues
         element.click();
+        sleep(500);
         // Send the keys
         element.sendKeys(text);
-        i = 0;
 
         if (text.length == 1 && text[0] != Keys.ENTER) { // special case, carriage-return for a previously-entered entry
-            while (!textString.equals(element.getAttribute("value")) && (i++ < 100)) {
-                LOG.debug("element value ({}) != text ({})", element.getAttribute("value"), textString);
-                try { Thread.sleep(200); } catch (InterruptedException e) {}
+            try {
+                waitForValue(selector, textString);
+            } catch (final Exception e) {
+                LOG.warn("Timed out waiting for {} to equal '{}'.", selector, textString, e);
             }
         }
+
         return element;
+    }
+
+    protected void sleep(final int millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (final InterruptedException e) {
+            throw new OpenNMSTestException(e);
+        }
+    }
+
+    protected void waitForValue(final By selector, final String value) {
+        wait.until(new Predicate<WebDriver>() {
+            @Override public boolean apply(final WebDriver driver) {
+                return value.equals(driver.findElement(selector).getAttribute("value"));
+            }
+        });
     }
 
     protected WebElement scrollToElement(final WebElement element) {
