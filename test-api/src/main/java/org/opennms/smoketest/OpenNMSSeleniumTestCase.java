@@ -152,17 +152,19 @@ public class OpenNMSSeleniumTestCase {
     }
 
     public static void configureTestEnvironment(final TestEnvironmentBuilder builder) {
-        builder.optIn(false);
         builder.skipTearDown(Boolean.getBoolean("org.opennms.smoketest.docker.skipTearDown"));
         builder.useExisting(Boolean.getBoolean("org.opennms.smoketest.docker.useExisting"));
-        builder.addFile(OpenNMSSeleniumTestCase.class.getResource("etc/monitoring-locations.xml"), "etc/monitoring-locations.xml");
+
+        builder.withOpenNMSEnvironment()
+                .optIn(false)
+                .addFile(OpenNMSSeleniumTestCase.class.getResource("etc/monitoring-locations.xml"), "etc/monitoring-locations.xml");
     }
 
-	public static boolean isDockerEnabled() {
-		return m_useDocker;
-	}
+    public static boolean isDockerEnabled() {
+        return m_useDocker;
+    }
 
-	private static final boolean setLevel(final String pack, final String level) {
+    private static final boolean setLevel(final String pack, final String level) {
         final Logger logger = org.slf4j.LoggerFactory.getLogger(pack);
         if (logger instanceof ch.qos.logback.classic.Logger) {
             ((ch.qos.logback.classic.Logger) logger).setLevel(ch.qos.logback.classic.Level.valueOf(level));
