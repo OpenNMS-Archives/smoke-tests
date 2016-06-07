@@ -129,7 +129,7 @@ public class OpenNMSSeleniumTestCase {
     private static final Logger LOG = LoggerFactory.getLogger(OpenNMSSeleniumTestCase.class);
     private static final String APACHE_LOG_LEVEL = "INFO"; // change this to help debug smoke tests
 
-    private static boolean m_useDocker = true;
+    private static boolean m_useDocker = Boolean.getBoolean("org.opennms.smoketest.docker");
     private static TestEnvironment m_testEnvironment = null;
 
     @ClassRule
@@ -138,8 +138,7 @@ public class OpenNMSSeleniumTestCase {
             LOG.warn("Setting up Docker test environment.");
             try {
                 final TestEnvironmentBuilder builder = TestEnvironment.builder().opennms();
-                builder.optIn(false);
-                builder.addFile(OpenNMSSeleniumTestCase.class.getResource("etc/monitoring-locations.xml"), "etc/monitoring-locations.xml");
+                configureTestEnvironment(builder);
                 m_testEnvironment = builder.build();
             } catch (final Throwable t) {
                 throw new RuntimeException(t);
@@ -152,7 +151,18 @@ public class OpenNMSSeleniumTestCase {
         return m_testEnvironment;
     }
 
-    private static final boolean setLevel(final String pack, final String level) {
+    public static void configureTestEnvironment(final TestEnvironmentBuilder builder) {
+        builder.optIn(false);
+        builder.skipTearDown(Boolean.getBoolean("org.opennms.smoketest.docker.skipTearDown"));
+        builder.useExisting(Boolean.getBoolean("org.opennms.smoketest.docker.useExisting"));
+        builder.addFile(OpenNMSSeleniumTestCase.class.getResource("etc/monitoring-locations.xml"), "etc/monitoring-locations.xml");
+    }
+
+	public static boolean isDockerEnabled() {
+		return m_useDocker;
+	}
+
+	private static final boolean setLevel(final String pack, final String level) {
         final Logger logger = org.slf4j.LoggerFactory.getLogger(pack);
         if (logger instanceof ch.qos.logback.classic.Logger) {
             ((ch.qos.logback.classic.Logger) logger).setLevel(ch.qos.logback.classic.Level.valueOf(level));
