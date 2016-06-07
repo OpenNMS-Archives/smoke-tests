@@ -95,7 +95,9 @@ import org.openqa.selenium.WebDriver.Timeouts;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
+import org.openqa.selenium.firefox.FirefoxBinary;
 import org.openqa.selenium.firefox.FirefoxDriver;
+import org.openqa.selenium.firefox.FirefoxProfile;
 import org.openqa.selenium.interactions.Actions;
 import org.openqa.selenium.logging.LogEntries;
 import org.openqa.selenium.logging.LogEntry;
@@ -120,7 +122,7 @@ import com.thoughtworks.selenium.SeleniumException;
 
 public class OpenNMSSeleniumTestCase {
     private static final Logger LOG = LoggerFactory.getLogger(OpenNMSSeleniumTestCase.class);
-    private static final String APACHE_LOG_LEVEL = "DEBUG"; // change this to help debug smoke tests
+    private static final String APACHE_LOG_LEVEL = "INFO"; // change this to help debug smoke tests
 
     private static final boolean setLevel(final String pack, final String level) {
         final Logger logger = org.slf4j.LoggerFactory.getLogger(pack);
@@ -198,43 +200,38 @@ public class OpenNMSSeleniumTestCase {
     public TestWatcher m_watcher = new TestWatcher() {
         @Override
         protected void starting(final Description description) {
+            m_driver = getDriver();
+            LOG.debug("Using driver: {}", m_driver);
+            setImplicitWait();
+            m_driver.manage().window().setPosition(new Point(0,0));
+            m_driver.manage().window().setSize(new Dimension(2048, 10000));
+            wait = new WebDriverWait(m_driver, TimeUnit.SECONDS.convert(LOAD_TIMEOUT, TimeUnit.MILLISECONDS));
+            requisitionWait = new WebDriverWait(m_driver, TimeUnit.SECONDS.convert(REQ_TIMEOUT, TimeUnit.MILLISECONDS));
+
+            m_driver.get(BASE_URL + "opennms/login.jsp");
+
+            // Wait until the login form is complete
+            wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("j_username")));
+            wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("j_password")));
+            wait.until(ExpectedConditions.elementToBeClickable(By.name("Login")));
+
+            enterText(By.name("j_username"), BASIC_AUTH_USERNAME);
+            enterText(By.name("j_password"), BASIC_AUTH_PASSWORD);
+            findElementByName("Login").click();
+
+            wait.until(ExpectedConditions.visibilityOfElementLocated(By.xpath("//div[@id='content']")));
             try {
-                m_driver = getDriver();
-                LOG.debug("Using driver: {}", m_driver);
-                setImplicitWait();
-                m_driver.manage().window().setPosition(new Point(0,0));
-                m_driver.manage().window().setSize(new Dimension(2048, 10000));
-                wait = new WebDriverWait(m_driver, TimeUnit.SECONDS.convert(LOAD_TIMEOUT, TimeUnit.MILLISECONDS));
-                requisitionWait = new WebDriverWait(m_driver, TimeUnit.SECONDS.convert(REQ_TIMEOUT, TimeUnit.MILLISECONDS));
-
-                m_driver.get(BASE_URL + "opennms/login.jsp");
-
-                // Wait until the login form is complete
-                wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("j_username")));
-                wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("j_password")));
-                wait.until(ExpectedConditions.elementToBeClickable(By.name("Login")));
-
-                enterText(By.name("j_username"), BASIC_AUTH_USERNAME);
-                enterText(By.name("j_password"), BASIC_AUTH_PASSWORD);
-                findElementByName("Login").click();
-
-                wait.until(ExpectedConditions.visibilityOfElementLocated(By.xpath("//div[@id='content']")));
+                // Disable implicitlyWait
+                setImplicitWait(0, TimeUnit.MILLISECONDS);
                 try {
-                    // Disable implicitlyWait
-                    setImplicitWait(0, TimeUnit.MILLISECONDS);
-                    try {
-                        // Make sure that the 'login-attempt-failed' element is not present
-                        findElementById("login-attempt-failed");
-                        fail("Login failed: " + findElementById("login-attempt-failed-reason").getText());
-                    } catch (NoSuchElementException e) {
-                        // This is expected
-                    }
-                } finally {
-                    setImplicitWait();
+                    // Make sure that the 'login-attempt-failed' element is not present
+                    findElementById("login-attempt-failed");
+                    fail("Login failed: " + findElementById("login-attempt-failed-reason").getText());
+                } catch (NoSuchElementException e) {
+                    // This is expected
                 }
-            } catch (final InstantiationException | IllegalAccessException | ClassNotFoundException | TimeoutException e) {
-                LOG.debug("Failed to get driver", e);
-                throw new RuntimeException("Tests aren't going to work.  Bailing.");
+            } finally {
+                setImplicitWait();
             }
 
             // make sure everything's in a good state if possible
@@ -272,7 +269,9 @@ public class OpenNMSSeleniumTestCase {
             for (final LogEntry entry : logs.getAll()) {
                 final int level = entry.getLevel().intValue();
                 final String msg = "BROWSER: " + entry.getMessage();
-                if (level >= Level.WARNING.intValue()) {
+                if (level > Level.SEVERE.intValue()) {
+                    LOG.error(msg);
+                } else if (level >= Level.WARNING.intValue()) {
                     LOG.warn(msg);
                 } else if (level >= Level.INFO.intValue()) {
                     LOG.info(msg);
@@ -324,11 +323,15 @@ public class OpenNMSSeleniumTestCase {
         return (JavascriptExecutor)getDriver();
     }
 
-    protected WebDriver getDriver() throws InstantiationException, IllegalAccessException, ClassNotFoundException {
+    protected WebDriver getDriver() {
         WebDriver driver = null;
         final String driverClass = System.getProperty("org.opennms.smoketest.webdriver.class", System.getProperty("webdriver.class"));
         if (driverClass != null) {
-            driver = (WebDriver)Class.forName(driverClass).newInstance();
+            try {
+                driver = (WebDriver)Class.forName(driverClass).newInstance();
+            } catch (final InstantiationException | IllegalAccessException | ClassNotFoundException e) {
+                throw new OpenNMSTestException(e);
+            }
         }
 
         // otherwise, PhantomJS if found, or fall back to Firefox
@@ -353,9 +356,17 @@ public class OpenNMSSeleniumTestCase {
                 }
             }
             if (driver == null) { // fallback to firefox
+                FirefoxProfile fp = new FirefoxProfile();
+                fp.setEnableNativeEvents(false);
+                fp.setPreference("app.update.auto", false);
+                fp.setPreference("app.update.enabled", false);
+                fp.setPreference("app.update.silent", false);
+                fp.setPreference("browser.startup.homepage", "about:blank");
+                fp.setPreference("startup.homepage_welcome_url", "about:blank");
+                fp.setPreference("startup.homepage_welcome_url.additional", "about:blank");
                 final DesiredCapabilities caps = DesiredCapabilities.firefox();
                 customizeCapabilities(caps);
-                driver = new FirefoxDriver(caps);
+                driver = new FirefoxDriver(new FirefoxBinary(), fp, caps);
             }
         }
         return driver;
@@ -514,27 +525,55 @@ public class OpenNMSSeleniumTestCase {
             @Override public Boolean apply(final WebDriver driver) {
                 final String xpathExpression = "//*[contains(., '" + escapedText + "')]";
                 LOG.debug("XPath expression: {}", xpathExpression);
-                final WebElement element = driver.findElement(By.xpath(xpathExpression));
-                return element != null;
+                try {
+                    final WebElement element = driver.findElement(By.xpath(xpathExpression));
+                    return element != null;
+                } catch (final NoSuchElementException e) {
+                    return false;
+                }
             }
         };
     }
 
+    public void focusElement(final By by) {
+        try {
+            Thread.sleep(200);
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        waitForElement(by).click();
+    }
+
+    public void clearElement(final By by) {
+        try {
+            Thread.sleep(200);
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        waitForElement(by).clear();
+    }
+
     protected void assertElementDoesNotExist(final By by) {
         LOG.debug("assertElementDoesNotExist: {}", by);
+        WebElement element = getElementWithoutWaiting(by);
+        if (element == null) {
+            LOG.debug("Success: element does not exist: {}", by);
+            return;
+        }
+        throw new OpenNMSTestException("Element should not exist, but was found: " + element);
+    }
+
+    protected WebElement getElementWithoutWaiting(final By by) {
         WebElement element = null;
         try {
             setImplicitWait(2, TimeUnit.SECONDS);
             element = getDriver().findElement(by);
         } catch (final NoSuchElementException e) {
-            LOG.debug("Success: element does not exist: {}", by);
-            return;
-        } catch (InstantiationException | IllegalAccessException | ClassNotFoundException e) {
-            throw new OpenNMSTestException(e);
+            return null;
         } finally {
             setImplicitWait();
         }
-        throw new OpenNMSTestException("Element should not exist, but was found: " + element);
+        return element;
     }
 
     protected void assertElementDoesNotHaveText(final By by, final String text) {
@@ -547,8 +586,6 @@ public class OpenNMSSeleniumTestCase {
         } catch (final NoSuchElementException e) {
             LOG.debug("Success: element does not exist: {}", by);
             return;
-        } catch (InstantiationException | IllegalAccessException | ClassNotFoundException e) {
-            throw new OpenNMSTestException(e);
         } finally {
             setImplicitWait();
         }
@@ -556,13 +593,8 @@ public class OpenNMSSeleniumTestCase {
 
     protected void assertElementHasText(final By by, final String text) {
         LOG.debug("assertElementHasText: locator={}, text={}", by, text);
-        WebElement element;
-        try {
-            element = getDriver().findElement(by);
-            assertTrue(element.getText().contains(text));
-        } catch (InstantiationException | IllegalAccessException | ClassNotFoundException e) {
-            throw new OpenNMSTestException(e);
-        }
+        WebElement element = getDriver().findElement(by);
+        assertTrue(element.getText().contains(text));
     }
 
     protected String handleAlert() {
@@ -702,6 +734,18 @@ public class OpenNMSSeleniumTestCase {
         m_driver.navigate().back();
     }
 
+    public WebElement waitForElement(final By by) {
+        return wait.until(new ExpectedCondition<WebElement>() {
+            @Override public WebElement apply(final WebDriver driver) {
+                try {
+                    return driver.findElement(by);
+                } catch (final StaleElementReferenceException e) {
+                    return null;
+                }
+            }
+        });
+    }
+
     public WebElement findElementById(final String id) {
         LOG.debug("findElementById: id={}", id);
         return m_driver.findElement(By.id(id));
@@ -752,22 +796,20 @@ public class OpenNMSSeleniumTestCase {
      */
     protected WebElement enterText(final By selector, final CharSequence... text) {
         final String textString = Joiner.on("").join(text);
-        LOG.debug("Enter text: '{}' into selector: {}", text, selector);
-        WebElement element = m_driver.findElement(selector);
-
+        LOG.debug("Enter text: '{}' into selector: '{}'", text, selector);
         // Clear the element content and then confirm it's really clear
-        element.clear();
+        waitForElement(selector).clear();
         waitForValue(selector, "");
 
         // Focus on the element before typing
-        scrollToElement(m_driver, element);
-        element.click();
+        scrollToElement(m_driver, m_driver.findElement(selector));
+        waitForElement(selector).click();
         sleep(500);
         // Do it a second time because there can be timing issues
-        element.click();
+        waitForElement(selector).click();
         sleep(500);
         // Send the keys
-        element.sendKeys(text);
+        waitForElement(selector).sendKeys(text);
 
         if (text.length == 1 && text[0] != Keys.ENTER) { // special case, carriage-return for a previously-entered entry
             try {
@@ -775,9 +817,11 @@ public class OpenNMSSeleniumTestCase {
             } catch (final Exception e) {
                 LOG.warn("Timed out waiting for {} to equal '{}'.", selector, textString, e);
             }
+        } else {
+            LOG.info("Skipped waiting for {} to equal {}", selector, textString);
         }
 
-        return element;
+        return m_driver.findElement(selector);
     }
 
     protected void sleep(final int millis) {
@@ -797,11 +841,7 @@ public class OpenNMSSeleniumTestCase {
     }
 
     protected WebElement scrollToElement(final WebElement element) {
-        try {
-            return scrollToElement(getDriver(), element);
-        } catch (final InstantiationException | IllegalAccessException | ClassNotFoundException e) {
-            throw new OpenNMSTestException(e);
-        }
+        return scrollToElement(getDriver(), element);
     }
 
     protected static WebElement scrollToElement(final WebDriver driver, final WebElement element) {
