@@ -1080,8 +1080,8 @@ public class OpenNMSSeleniumTestCase {
                     sendDelete("/rest/foreignSources/deployed/" + foreignSourceUrlFragment);
                 }
                 Thread.sleep(1000);
-            } catch (final IOException | InterruptedException e1) {
-                throw new OpenNMSTestException(e1);
+            } catch (final Exception e) {
+                throw new OpenNMSTestException(e);
             }
             if (System.currentTimeMillis() > waitUntil) {
                 throw new OpenNMSTestException("Gave up waiting to delete requisition '" + foreignSource + "'.  This should totally not happen.");
@@ -1297,13 +1297,16 @@ public class OpenNMSSeleniumTestCase {
 
         @Override
         public Boolean apply(final WebDriver input) {
-            long nodes = getNodesInDatabase(m_foreignSource);
-            LOG.debug("WaitForNodesInDatabase: foreignSource={}, count={}", m_foreignSource, nodes);
-            if (nodes == m_numberToMatch) {
-                return true;
-            } else {
-                return null;
+            try {
+                final long nodes = getNodesInDatabase(m_foreignSource);
+                LOG.debug("WaitForNodesInDatabase: foreignSource={}, count={}", m_foreignSource, nodes);
+                if (nodes == m_numberToMatch) {
+                    return true;
+                }
+            } catch (final Exception e) {
+                LOG.warn("WaitForNodesInDatabase: foreignSource={}, count={}: Failed while attempting to validate.", m_foreignSource, m_numberToMatch, e);
             }
+            return null;
         }
     }
 
@@ -1326,13 +1329,13 @@ public class OpenNMSSeleniumTestCase {
         @Override
         public Boolean apply(final WebDriver input) {
             try {
-                long nodes = getNodesInRequisition(m_foreignSource);
+                final long nodes = getNodesInRequisition(m_foreignSource);
                 LOG.debug("WaitForNodesInRequisition: foreignSource={}, count={}", m_foreignSource, nodes);
                 if (nodes == m_numberToMatch) {
                     return true;
                 }
             } catch (final Exception e) {
-                LOG.warn("Failed to get nodes in requisition {}.", m_foreignSource, e);
+                LOG.warn("WaitForNodesInRequisition: foreignSource={}, expectedNodes={}: Failed to get nodes in requisition {}.", m_foreignSource, m_numberToMatch, e);
             }
             return null;
         }
