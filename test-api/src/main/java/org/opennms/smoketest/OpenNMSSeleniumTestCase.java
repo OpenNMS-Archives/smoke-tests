@@ -656,7 +656,7 @@ public class OpenNMSSeleniumTestCase {
 
     protected void assertElementHasText(final By by, final String text) {
         LOG.debug("assertElementHasText: locator={}, text={}", by, text);
-        WebElement element = getDriver().findElement(by);
+        WebElement element = waitForElement(by);
         assertTrue(element.getText().contains(text));
     }
 
@@ -798,7 +798,11 @@ public class OpenNMSSeleniumTestCase {
     }
 
     public WebElement waitForElement(final By by) {
-        return wait.until(new ExpectedCondition<WebElement>() {
+        return waitForElement(wait, by);
+    }
+
+    public WebElement waitForElement(final WebDriverWait w, final By by) {
+        return w.until(new ExpectedCondition<WebElement>() {
             @Override public WebElement apply(final WebDriver driver) {
                 try {
                     return driver.findElement(by);
@@ -860,29 +864,45 @@ public class OpenNMSSeleniumTestCase {
     protected WebElement enterText(final By selector, final CharSequence... text) {
         final String textString = Joiner.on("").join(text);
         LOG.debug("Enter text: '{}' into selector: '{}'", text, selector);
-        // Clear the element content and then confirm it's really clear
-        waitForElement(selector).clear();
-        waitForValue(selector, "");
 
         // Focus on the element before typing
         scrollToElement(m_driver, m_driver.findElement(selector));
         waitForElement(selector).click();
         sleep(500);
-        // Do it a second time because there can be timing issues
-        waitForElement(selector).click();
-        sleep(500);
-        // Send the keys
-        waitForElement(selector).sendKeys(text);
 
-        if (text.length == 1 && text[0] != Keys.ENTER) { // special case, carriage-return for a previously-entered entry
-            try {
-                waitForValue(selector, textString);
-            } catch (final Exception e) {
-                LOG.warn("Timed out waiting for {} to equal '{}'.", selector, textString, e);
+        final long end = System.currentTimeMillis() + LOAD_TIMEOUT;
+        boolean found = false;
+        int count = 0;
+
+        final WebDriverWait shortWait = new WebDriverWait(m_driver, 10);
+
+        do {
+            LOG.debug("enterText({},{}): {}", selector, text, ++count);
+            // Clear the element content and then confirm it's really clear
+            waitForElement(selector).clear();
+            waitForValue(selector, "");
+
+            // Click the element to make sure it's still got the focus
+            waitForElement(selector).click();
+            sleep(500);
+            // Send the keys
+            waitForElement(selector).sendKeys(text);
+            waitForElement(selector).click();
+            sleep(500);
+
+            if (text.length == 1 && text[0] != Keys.ENTER) { // special case, carriage-return for a previously-entered entry
+                try {
+                    final String elementText = waitForElement(shortWait, selector).getText();
+                    final String elementValue = waitForElement(shortWait, selector).getAttribute("value");
+                    found = elementText.contains(textString) || elementValue.contains(textString);
+                } catch (final Exception e) {
+                    LOG.warn("Failed when checking for {} to equal '{}'.", selector, textString, e);
+                }
+            } else {
+                LOG.info("Skipped waiting for {} to equal {}", selector, textString);
+                found = true;
             }
-        } else {
-            LOG.info("Skipped waiting for {} to equal {}", selector, textString);
-        }
+        } while (!found && System.currentTimeMillis() < end);
 
         return m_driver.findElement(selector);
     }
