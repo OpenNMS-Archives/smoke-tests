@@ -76,6 +76,7 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
 import org.jsoup.Jsoup;
 import org.jsoup.select.Elements;
+import org.junit.Assume;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.rules.TestWatcher;
@@ -158,6 +159,10 @@ public class OpenNMSSeleniumTestCase {
         builder.withOpenNMSEnvironment()
                 .optIn(false)
                 .addFile(OpenNMSSeleniumTestCase.class.getResource("etc/monitoring-locations.xml"), "etc/monitoring-locations.xml");
+    }
+
+    public static void assumeDockerEnabled() {
+        Assume.assumeTrue("Docker is required for this test!  Enable it by setting -Dorg.opennms.smoketest.docker=true when running.", m_useDocker);
     }
 
     public static boolean isDockerEnabled() {
