@@ -803,7 +803,7 @@ public class OpenNMSSeleniumTestCase {
         LOG.debug("Enter text: '{}' into selector: '{}'", text, selector);
 
         // Focus on the element before typing
-        scrollToElement(m_driver, m_driver.findElement(selector));
+        scrollToElement(selector);
         waitForElement(selector).click();
         sleep(500);
 
@@ -860,10 +860,16 @@ public class OpenNMSSeleniumTestCase {
         });
     }
 
+    /**
+     * @deprecated Use {@link #scrollToElement(By)} instead.
+     */
     protected WebElement scrollToElement(final WebElement element) {
         return scrollToElement(getDriver(), element);
     }
 
+    /**
+     * @deprecated Use {@link #scrollToElement(By)} instead.
+     */
     protected static WebElement scrollToElement(final WebDriver driver, final WebElement element) {
         LOG.debug("scrollToElement: element={}", element);
 
@@ -872,6 +878,34 @@ public class OpenNMSSeleniumTestCase {
         final JavascriptExecutor je = (JavascriptExecutor)driver;
         je.executeScript("window.scrollTo(0, " + (bounds.get(1) - (windowHeight/2)) + ");");
         return element;
+    }
+
+    protected WebElement scrollToElement(final By by) {
+        LOG.debug("scrollToElement: by={}", by);
+
+        try {
+            setImplicitWait(200, TimeUnit.MILLISECONDS);
+            final WebElement element = wait.until(new ExpectedCondition<WebElement>() {
+                @Override public WebElement apply(final WebDriver driver) {
+                    try {
+                        final WebElement el = waitForElement(by);
+                        final List<Integer> bounds = getBoundedRectangleOfElement(driver, el);
+                        final int windowHeight = driver.manage().window().getSize().getHeight();
+                        final JavascriptExecutor je = (JavascriptExecutor)driver;
+                        je.executeScript("window.scrollTo(0, " + (bounds.get(1) - (windowHeight/2)) + ");");
+                        return el;
+                    } catch (final Exception e) {
+                        return null;
+                    }
+                }
+            });
+            if (element == null) {
+                throw new OpenNMSTestException("Failed to scroll to element: " + by);
+            }
+            return element;
+        } finally {
+            setImplicitWait();
+        }
     }
 
     @SuppressWarnings("unchecked")
