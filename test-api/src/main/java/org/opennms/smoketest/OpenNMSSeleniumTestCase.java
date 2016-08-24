@@ -1321,6 +1321,26 @@ public class OpenNMSSeleniumTestCase {
         }
     }
 
+    protected void sendPut(final String urlFragment, final String body) throws ClientProtocolException, IOException, InterruptedException {
+        sendPut(urlFragment, body, null);
+    }
+
+    protected void sendPut(final String urlFragment, final String body, final Integer expectedResponse) throws ClientProtocolException, IOException, InterruptedException {
+        LOG.debug("sendPut: url={}, expectedResponse={}, body={}", urlFragment, expectedResponse, body);
+        final HttpPut put = new HttpPut(getBaseUrl() + "opennms" + (urlFragment.startsWith("/")? urlFragment : "/" + urlFragment));
+        put.setEntity(new StringEntity(body, ContentType.APPLICATION_FORM_URLENCODED));
+        final Integer response = doRequest(put);
+        if (expectedResponse == null) {
+            if (response == null || (response != 303 && response != 200 && response != 201 && response != 202)) {
+                throw new RuntimeException("Bad response code! (" + response + "; expected 200, 201, 202, or 303)");
+            }
+        } else {
+            if (!expectedResponse.equals(response)) {
+                throw new RuntimeException("Bad response code! (" + response + "; expected " + expectedResponse + ")");
+            }
+        }
+    }
+
     protected void sendDelete(final String urlFragment) throws ClientProtocolException, IOException, InterruptedException {
         sendDelete(urlFragment, null);
     }
