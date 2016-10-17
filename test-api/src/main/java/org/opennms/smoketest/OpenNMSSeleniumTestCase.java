@@ -442,6 +442,16 @@ public class OpenNMSSeleniumTestCase {
     }
 
     private static File findChrome() {
+        // Allow setting chrome binary manually
+        final String chromePath = System.getProperty("chrome.path");
+        if (chromePath != null && !"".equals(chromePath)) {
+            final File chromeFile = new File(chromePath);
+            if (isExectuable(chromeFile)) {
+                return chromeFile;
+            }
+        }
+
+        // search binary
         final String os = System.getProperty("os.name").toLowerCase();
         final String extension = (os.indexOf("win") >= 0)? ".exe" : "";
 
@@ -450,7 +460,7 @@ public class OpenNMSSeleniumTestCase {
             LOG.debug("findChrome(): Unable to get PATH.");
             final File chromeFile = new File("/usr/bin/chromium-browser" + extension);
             LOG.debug("findChrome(): trying {}", chromeFile);
-            if (chromeFile.exists() && chromeFile.canExecute()) {
+            if (isExectuable(chromeFile)) {
                 return chromeFile;
             }
         } else {
@@ -462,13 +472,17 @@ public class OpenNMSSeleniumTestCase {
                 for (final String exeName : new String[] { "chromium-browser", "chrome", "google-chrome" }) {
                     final File chromeFile = new File(directory + File.separator + exeName + extension);
                     LOG.debug("findChrome(): trying {}", chromeFile);
-                    if (chromeFile.exists() && chromeFile.canExecute()) {
+                    if (isExectuable(chromeFile)) {
                         return chromeFile;
                     }
                 }
             }
         }
         return null;
+    }
+
+    private static boolean isExectuable(File file) {
+        return file != null && file.exists() && file.canExecute();
     }
 
     private static File findChromeDriver() {
