@@ -44,6 +44,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
@@ -112,6 +113,7 @@ import org.openqa.selenium.phantomjs.PhantomJSDriverService;
 import org.openqa.selenium.remote.DesiredCapabilities;
 import org.openqa.selenium.support.ui.ExpectedCondition;
 import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.openqa.selenium.support.ui.Select;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -387,6 +389,9 @@ public class OpenNMSSeleniumTestCase {
     }
 
     protected WebDriver getDriver() {
+        if (m_driver != null) {
+            return m_driver;
+        }
         WebDriver driver = null;
         final String driverClass = System.getProperty("org.opennms.smoketest.webdriver.class", System.getProperty("webdriver.class"));
         if (driverClass != null) {
@@ -640,6 +645,19 @@ public class OpenNMSSeleniumTestCase {
         throw new OpenNMSTestException("Element should not exist, but was found: " + element);
     }
 
+    protected WebElement getElementImmediately(final By by) {
+        WebElement element = null;
+        try {
+            setImplicitWait(0, TimeUnit.MILLISECONDS);
+            element = getDriver().findElement(by);
+        } catch (final NoSuchElementException e) {
+            return null;
+        } finally {
+            setImplicitWait();
+        }
+        return element;
+    }
+
     protected WebElement getElementWithoutWaiting(final By by) {
         WebElement element = null;
         try {
@@ -811,20 +829,192 @@ public class OpenNMSSeleniumTestCase {
         m_driver.navigate().back();
     }
 
+    public void clickElement(final By by) {
+        waitUntil(new Callable<WebElement>() {
+            @Override public WebElement call() throws Exception {
+                final WebElement el = getElementImmediately(by);
+                el.click();
+                return el;
+            }
+        });
+    }
+
     public WebElement waitForElement(final By by) {
         return waitForElement(wait, by);
     }
 
     public WebElement waitForElement(final WebDriverWait w, final By by) {
-        return w.until(new ExpectedCondition<WebElement>() {
-            @Override public WebElement apply(final WebDriver driver) {
-                try {
-                    return driver.findElement(by);
-                } catch (final StaleElementReferenceException e) {
-                    return null;
+        return waitUntil(null, w, new Callable<WebElement>() {
+            @Override public WebElement call() throws Exception {
+                final WebElement el = getDriver().findElement(by);
+                if (el.isDisplayed() && el.isEnabled()) {
+                    return el;
                 }
+                return null;
             }
         });
+    }
+
+    public void enterAutocompleteText(final By textInput, final String text) {
+        waitUntil(100L, null, new Callable<Boolean>() {
+            @Override public Boolean call() throws Exception {
+                waitForElement(textInput).clear();
+                waitForValue(textInput, "");
+                waitForElement(textInput).sendKeys(text);
+                // Click on the item that appears
+                findElementByXpath("//span[text()='" + text + "']").click();
+                return true;
+            }
+        });
+    }
+
+    public void clickUntilVaadinPopupAppears(final By by, final String title) {
+        waitUntil(100L, null, new Callable<Boolean>() {
+            @Override public Boolean call() throws Exception {
+                final WebDriver driver = getDriver();
+                WebElement popup = getVaadinPopup(driver, title);
+
+                if (popup == null) {
+                    try {
+                        LOG.debug("clickUntilVaadinPopupAppears: looking for '{}'", by);
+                        final WebElement el = getElementImmediately(by);
+                        if (el == null) {
+                            LOG.debug("clickUntilVaadinPopupAppears: element not found: {}", by);
+                            Thread.sleep(50);
+                            return false;
+                        } else {
+                            LOG.debug("clickUntilVaadinPopupAppears: clicking element: {}", el);
+                            el.click();
+                            Thread.sleep(50);
+                        }
+                    } catch (final Throwable t) {
+                        LOG.debug("clickUntilVaadinPopupAppears: exception raised while attempting to click {}", by, t);
+                        return false;
+                    }
+
+                    popup = getVaadinPopup(driver, title);
+                    if (popup != null) {
+                        return true;
+                    }
+                } else if (popup.isDisplayed() && popup.isEnabled()) {
+                    return true;
+                } else {
+                    LOG.debug("clickUntilVaadinPopupAppears: popup with title '{}' is gone", title);
+                }
+                return false;
+            }
+        });
+        waitFor(1);
+    }
+
+    public void clickUntilVaadinPopupDisappears(final By by, final String title) {
+        waitUntil(100L, null, new Callable<Boolean>() {
+            @Override public Boolean call() throws Exception {
+                final WebDriver driver = getDriver();
+                WebElement popup = getVaadinPopup(driver, title);
+
+                if (popup != null) {
+                    try {
+                        LOG.debug("clickIdUntilVaadinPopupDisappears: looking for '{}'", by);
+                        final WebElement el = getElementImmediately(by);
+                        if (el == null) {
+                            LOG.debug("clickIdUntilVaadinPopupDisappears: element not found: {}", by);
+                            Thread.sleep(50);
+                            return false;
+                        } else {
+                            LOG.debug("clickIdUntilVaadinPopupDisappears: clicking element: {}", el);
+                            el.click();
+                            Thread.sleep(50);
+                        }
+                    } catch (final Throwable t) {
+                        LOG.debug("clickUntilVaadinPopupDisappears: exception raised while attempting to click {}", by, t);
+                        return false;
+                    }
+
+                    popup = getVaadinPopup(driver, title);
+                    if (popup == null) {
+                        return true;
+                    }
+                } else {
+                    return true;
+                }
+                return false;
+            }
+        });
+        waitFor(1);
+    }
+
+    protected boolean inVaadin() {
+        try {
+            final WebElement element = getElementImmediately(By.className("v-generated-body"));
+            if (element != null) {
+                return true;
+            }
+        } catch (final Exception e) {
+        }
+        return false;
+    }
+
+    protected void selectVaadinFrame() {
+        if (!inVaadin()) {
+            LOG.debug("Switching to Vaadin frame.");
+            getDriver().switchTo().frame(findElementById("vaadin-content"));
+        }
+    }
+
+    protected void selectDefaultFrame() {
+        LOG.debug("Switching to default frame.");
+        getDriver().switchTo().defaultContent();
+    }
+
+    private WebElement getVaadinPopup(final WebDriver driver, final String title) {
+        selectVaadinFrame();
+        try {
+            LOG.debug("Checking for Vaadin popup '{}'", title);
+            final By vaadinHeaderXpath = By.xpath("//div[@class='popupContent']//div[contains(text(), '" + title + "') and @class='v-window-header']");
+            final WebElement el = getElementImmediately(vaadinHeaderXpath);
+            LOG.debug("Found Vaadin popup '{}': {}", title, el.toString());
+            return el;
+        } catch (final Throwable t) {
+            LOG.debug("Did not find Vaadin popup '{}'", title);
+            return null;
+        }
+    }
+
+    public void selectByVisibleText(final String id, final String text) {
+        LOG.debug("selectByVisibleText: id={}, text={}", id, text);
+        waitUntil(null, null, new Callable<Boolean>() {
+            @Override public Boolean call() throws Exception {
+                final Select select = getSelectWebElement(id);
+                select.selectByVisibleText(text);
+                return true;
+            }
+
+        });
+    }
+
+    /**
+     * Vaadin usually wraps the select elements around a div element.
+     * This method considers this.
+     */
+    public Select getSelectWebElement(final String id) {
+        LOG.debug("Getting <div id='{}'><select />", id);
+
+        final WebElement div = waitUntil(null, null, new Callable<WebElement>() {
+            @Override public WebElement call() throws Exception {
+                LOG.debug("Searching for id '{}'", id);
+                final WebElement el = getElementImmediately(By.id(id));
+                if (el != null && el.isDisplayed() && el.isEnabled()) {
+                    return el;
+                }
+                return null;
+            }
+        });
+
+        LOG.debug("Found id: {} -- looking for select element.", div);
+        final WebElement element = div.findElement(By.tagName("select"));
+        LOG.debug("Found select: {}", element);
+        return new Select(element);
     }
 
     public WebElement findElementById(final String id) {
@@ -879,9 +1069,12 @@ public class OpenNMSSeleniumTestCase {
         final String textString = Joiner.on("").join(text);
         LOG.debug("Enter text: '{}' into selector: '{}'", text, selector);
 
-        // Focus on the element before typing
+        // First, attempt to focus on the element before typing
         scrollToElement(selector);
-        waitForElement(selector).click();
+        final WebElement el = waitForElement(selector);
+        if (el.isDisplayed() && el.isEnabled()) {
+            el.click();
+        }
         sleep(500);
 
         final long end = System.currentTimeMillis() + LOAD_TIMEOUT;
@@ -958,31 +1151,80 @@ public class OpenNMSSeleniumTestCase {
     }
 
     protected WebElement scrollToElement(final By by) {
+        return scrollToElement(by, true);
+    }
+
+    protected WebElement scrollToElement(final By by, final boolean waitForElement) {
         LOG.debug("scrollToElement: by={}", by);
 
-        try {
-            setImplicitWait(200, TimeUnit.MILLISECONDS);
-            final WebElement element = wait.until(new ExpectedCondition<WebElement>() {
-                @Override public WebElement apply(final WebDriver driver) {
-                    try {
-                        final WebElement el = waitForElement(by);
-                        final List<Integer> bounds = getBoundedRectangleOfElement(driver, el);
-                        final int windowHeight = driver.manage().window().getSize().getHeight();
-                        final JavascriptExecutor je = (JavascriptExecutor)driver;
-                        je.executeScript("window.scrollTo(0, " + (bounds.get(1) - (windowHeight/2)) + ");");
-                        return el;
-                    } catch (final Exception e) {
-                        return null;
+        if (waitForElement) {
+            try {
+                setImplicitWait(200, TimeUnit.MILLISECONDS);
+                final WebElement element = wait.until(new ExpectedCondition<WebElement>() {
+                    @Override public WebElement apply(final WebDriver driver) {
+                        final WebElement el = waitForElement? waitForElement(by) : driver.findElement(by);
+                        return doScroll(driver, el);
                     }
+
+                });
+                if (element == null) {
+                    throw new OpenNMSTestException("Failed to scroll to element: " + by);
                 }
-            });
-            if (element == null) {
-                throw new OpenNMSTestException("Failed to scroll to element: " + by);
+                return element;
+            } finally {
+                setImplicitWait();
             }
-            return element;
-        } finally {
-            setImplicitWait();
+        } else {
+            final WebDriver driver = getDriver();
+            final WebElement el = driver.findElement(by);
+            return doScroll(driver, el);
         }
+    }
+
+    private WebElement doScroll(final WebDriver driver, final WebElement element) {
+        try {
+            final List<Integer> bounds = getBoundedRectangleOfElement(driver, element);
+            final int windowHeight = driver.manage().window().getSize().getHeight();
+            final JavascriptExecutor je = (JavascriptExecutor)driver;
+            je.executeScript("window.scrollTo(0, " + (bounds.get(1) - (windowHeight/2)) + ");");
+            return element;
+        } catch (final Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * In some cases, Vaadin doesn't register our clicks,
+     * so this method keeps click until the given element
+     * is no longer found.
+     *
+     * @param by selector
+     */
+    public void clickElementUntilElementDisappears(final By click, final By disappears) {
+        waitUntil(100L, null, new Callable<Boolean>() {
+            @Override public Boolean call() throws Exception {
+                try {
+                    final WebElement element = getElementImmediately(disappears);
+                    if (element == null) {
+                        return true;
+                    }
+                } catch (final NoSuchElementException e) {
+                    return true;
+                } catch (final Throwable t) {
+                    LOG.warn("clickElementUntilItDisappears: disappearing element not gone yet: click={}, disappears={}", click, disappears, t);
+                    return false;
+                }
+                try {
+                    final WebElement element = getElementImmediately(click);
+                    if (element != null) {
+                        element.click();
+                    }
+                } catch (final Throwable t) {
+                    LOG.warn("clickElementUntilItDisappears: unable to click clickable: click={}, disappears={}", click, disappears, t);
+                }
+                return false;
+            }
+        });
     }
 
     @SuppressWarnings("unchecked")
@@ -1004,7 +1246,7 @@ public class OpenNMSSeleniumTestCase {
     }
 
     protected void clickId(final String id, final boolean refresh) throws InterruptedException {
-        LOG.debug("clickElement: id={}, refresh={}", id, refresh);
+        LOG.debug("clickId: id={}, refresh={}", id, refresh);
         WebElement element = null;
         try {
             setImplicitWait(10, TimeUnit.MILLISECONDS);
@@ -1034,6 +1276,33 @@ public class OpenNMSSeleniumTestCase {
             }
             Thread.sleep(1000);
             element.click();
+        } finally {
+            setImplicitWait();
+        }
+    }
+
+    public <T> T waitUntil(final Callable<T> callable) {
+        return waitUntil(null, wait, callable);
+    }
+
+    public <T> T waitUntil(final WebDriverWait w, final Callable<T> callable) {
+        return waitUntil(null, w, callable);
+    }
+
+    public <T> T waitUntil(final Long implicitWait, final WebDriverWait w, final Callable<T> callable) {
+        final WebDriverWait wdw = w == null? wait : w;
+        try {
+            setImplicitWait(implicitWait == null? 50 : implicitWait, TimeUnit.MILLISECONDS);
+            return wdw.until(new ExpectedCondition<T>() {
+                @Override
+                public T apply(final WebDriver driver) {
+                    try {
+                        return callable.call();
+                    } catch (final Throwable t) {
+                        return null;
+                    }
+                }
+            });
         } finally {
             setImplicitWait();
         }
