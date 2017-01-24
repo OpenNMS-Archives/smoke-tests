@@ -890,6 +890,10 @@ public class OpenNMSSeleniumTestCase {
         getDriver().switchTo().defaultContent();
     }
 
+    public WebElement getVaadinPopup(final String title) {
+        return getVaadinPopup(getDriver(), title);
+    }
+
     private WebElement getVaadinPopup(final WebDriver driver, final String title) {
         selectVaadinFrame();
         try {
