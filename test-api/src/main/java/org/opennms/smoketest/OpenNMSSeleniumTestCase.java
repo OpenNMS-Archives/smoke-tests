@@ -985,7 +985,7 @@ public class OpenNMSSeleniumTestCase {
         LOG.debug("selectByVisibleText: id={}, text={}", id, text);
         waitUntil(null, null, new Callable<Boolean>() {
             @Override public Boolean call() throws Exception {
-                final Select select = getSelectWebElement(id);
+                final Select select = getSelect(id);
                 select.selectByVisibleText(text);
                 return true;
             }
@@ -997,7 +997,7 @@ public class OpenNMSSeleniumTestCase {
      * Vaadin usually wraps the select elements around a div element.
      * This method considers this.
      */
-    public Select getSelectWebElement(final String id) {
+    public Select getSelect(final String id) {
         LOG.debug("Getting <div id='{}'><select />", id);
 
         final WebElement div = waitUntil(null, null, new Callable<WebElement>() {
