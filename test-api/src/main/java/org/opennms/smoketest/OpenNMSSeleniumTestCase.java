@@ -477,7 +477,7 @@ public class OpenNMSSeleniumTestCase {
     }
 
     protected Timeouts setImplicitWait(final long time, final TimeUnit unit) {
-        LOG.debug("Setting implicit wait to {} milliseconds.", unit.toMillis(time));
+        LOG.trace("Setting implicit wait to {} milliseconds.", unit.toMillis(time));
         return m_driver.manage().timeouts().implicitlyWait(time, unit);
     }
 
