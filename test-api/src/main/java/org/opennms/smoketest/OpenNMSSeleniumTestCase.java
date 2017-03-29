@@ -273,31 +273,7 @@ public class OpenNMSSeleniumTestCase {
             wait = new WebDriverWait(m_driver, TimeUnit.SECONDS.convert(LOAD_TIMEOUT, TimeUnit.MILLISECONDS));
             requisitionWait = new WebDriverWait(m_driver, TimeUnit.SECONDS.convert(REQ_TIMEOUT, TimeUnit.MILLISECONDS));
 
-            m_driver.get(getBaseUrl() + "opennms/login.jsp");
-
-            // Wait until the login form is complete
-            wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("j_username")));
-            wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("j_password")));
-            wait.until(ExpectedConditions.elementToBeClickable(By.name("Login")));
-
-            enterText(By.name("j_username"), BASIC_AUTH_USERNAME);
-            enterText(By.name("j_password"), BASIC_AUTH_PASSWORD);
-            findElementByName("Login").click();
-
-            wait.until(ExpectedConditions.visibilityOfElementLocated(By.xpath("//div[@id='content']")));
-            try {
-                // Disable implicitlyWait
-                setImplicitWait(0, TimeUnit.MILLISECONDS);
-                try {
-                    // Make sure that the 'login-attempt-failed' element is not present
-                    findElementById("login-attempt-failed");
-                    fail("Login failed: " + findElementById("login-attempt-failed-reason").getText());
-                } catch (NoSuchElementException e) {
-                    // This is expected
-                }
-            } finally {
-                setImplicitWait();
-            }
+            login();
 
             // make sure everything's in a good state if possible
             cleanUp();
@@ -598,6 +574,43 @@ public class OpenNMSSeleniumTestCase {
         } finally {
             setImplicitWait();
         }
+    }
+
+    protected void login() {
+        m_driver.get(getBaseUrl() + "opennms/login.jsp");
+
+        waitForLogin();
+
+        enterText(By.name("j_username"), BASIC_AUTH_USERNAME);
+        enterText(By.name("j_password"), BASIC_AUTH_PASSWORD);
+        findElementByName("Login").click();
+
+        wait.until(ExpectedConditions.visibilityOfElementLocated(By.xpath("//div[@id='content']")));
+        try {
+            // Disable implicitlyWait
+            setImplicitWait(0, TimeUnit.MILLISECONDS);
+            try {
+                // Make sure that the 'login-attempt-failed' element is not present
+                findElementById("login-attempt-failed");
+                fail("Login failed: " + findElementById("login-attempt-failed-reason").getText());
+            } catch (NoSuchElementException e) {
+                // This is expected
+            }
+        } finally {
+            setImplicitWait();
+        }
+    }
+
+    protected void logout() {
+        m_driver.get(getBaseUrl() + "opennms/j_spring_security_logout");
+        waitForLogin();
+    }
+
+    private void waitForLogin() {
+        // Wait until the login form is complete
+        wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("j_username")));
+        wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("j_password")));
+        wait.until(ExpectedConditions.elementToBeClickable(By.name("Login")));
     }
 
     protected ExpectedCondition<Boolean> pageContainsText(final String text) {
