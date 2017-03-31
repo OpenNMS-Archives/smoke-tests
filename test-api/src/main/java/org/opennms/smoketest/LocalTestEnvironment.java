@@ -35,6 +35,11 @@ public class LocalTestEnvironment extends ExternalResourceRule implements TestEn
     }
 
     @Override
+    public InetSocketAddress getServiceAddress(ContainerInfo containerInfo, int port, String type) {
+        throw new UnsupportedOperationException("Unsure how to answer for local requests!");
+    }
+
+    @Override
     public ContainerInfo getContainerInfo(ContainerAlias alias) {
         throw new UnsupportedOperationException("Unsure how to answer for local requests!");
     }

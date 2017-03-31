@@ -29,6 +29,11 @@ public class NullTestEnvironment implements TestEnvironment {
 	}
 
 	@Override
+	public InetSocketAddress getServiceAddress(ContainerInfo alias, int port, String type) {
+		return null;
+	}
+
+	@Override
 	public ContainerInfo getContainerInfo(ContainerAlias alias) {
 		return null;
 	}
