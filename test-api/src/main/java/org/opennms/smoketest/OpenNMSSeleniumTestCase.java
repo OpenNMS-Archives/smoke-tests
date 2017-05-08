@@ -788,7 +788,7 @@ public class OpenNMSSeleniumTestCase {
     protected void frontPage() {
         LOG.debug("navigating to the front page");
         m_driver.get(getBaseUrl() + "opennms/");
-        m_driver.findElement(By.id("index-contentleft"));
+        m_driver.findElement(By.id("index-contentmiddle"));
     }
 
     public void adminPage() {
