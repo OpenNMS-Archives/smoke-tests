@@ -256,6 +256,10 @@ public class OpenNMSSeleniumTestCase {
                 .append(":").append(getServerHttpPort()).append("/")
                 .toString();
     }
+    
+    protected String buildUrl(String urlFragment) {
+        return getBaseUrl() + "opennms" + (urlFragment.startsWith("/")? urlFragment : "/" + urlFragment);
+    }
 
     public String createBasicAuthHeader() {
         final String authString = String.format("%s:%s", BASIC_AUTH_USERNAME, BASIC_AUTH_PASSWORD);
@@ -1623,10 +1627,10 @@ public class OpenNMSSeleniumTestCase {
     protected void sendPost(final String urlFragment, final String body) throws ClientProtocolException, IOException, InterruptedException {
         sendPost(urlFragment, body, null);
     }
-
+    
     protected void sendPost(final String urlFragment, final String body, final Integer expectedResponse) throws ClientProtocolException, IOException, InterruptedException {
         LOG.debug("sendPost: url={}, expectedResponse={}, body={}", urlFragment, expectedResponse, body);
-        final HttpPost post = new HttpPost(getBaseUrl() + "opennms" + (urlFragment.startsWith("/")? urlFragment : "/" + urlFragment));
+        final HttpPost post = new HttpPost(buildUrl(urlFragment));
         post.setEntity(new StringEntity(body, ContentType.APPLICATION_XML));
         final Integer response = doRequest(post);
         if (expectedResponse == null) {
@@ -1646,7 +1650,7 @@ public class OpenNMSSeleniumTestCase {
 
     protected void sendPut(final String urlFragment, final String body, final Integer expectedResponse) throws ClientProtocolException, IOException, InterruptedException {
         LOG.debug("sendPut: url={}, expectedResponse={}, body={}", urlFragment, expectedResponse, body);
-        final HttpPut put = new HttpPut(getBaseUrl() + "opennms" + (urlFragment.startsWith("/")? urlFragment : "/" + urlFragment));
+        final HttpPut put = new HttpPut(buildUrl(urlFragment));
         put.setEntity(new StringEntity(body, ContentType.APPLICATION_FORM_URLENCODED));
         final Integer response = doRequest(put);
         if (expectedResponse == null) {
