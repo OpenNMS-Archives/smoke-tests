@@ -43,6 +43,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
+import java.util.Objects;
 import java.util.Properties;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
@@ -586,9 +587,7 @@ public class OpenNMSSeleniumTestCase {
         findElementByName("Login").click();
 
         wait.until(ExpectedConditions.visibilityOfElementLocated(By.xpath("//div[@id='content']")));
-        try {
-            // Disable implicitlyWait
-            setImplicitWait(0, TimeUnit.MILLISECONDS);
+        invokeWithImplicitWait(0, () -> {
             try {
                 // Make sure that the 'login-attempt-failed' element is not present
                 findElementById("login-attempt-failed");
@@ -596,6 +595,26 @@ public class OpenNMSSeleniumTestCase {
             } catch (NoSuchElementException e) {
                 // This is expected
             }
+        });
+        invokeWithImplicitWait(0, () -> {
+            try {
+                WebElement element = findElementById("datachoices-modal");
+                if (element.isDisplayed()) { // datachoice modal is visible
+                    findElementById("datachoices-disable").click(); // opt out
+                }
+            } catch (NoSuchElementException e) {
+                // "datachoices-modal" is not visible or does not exist.
+                // No further action required
+            }
+        });
+    }
+
+    private void invokeWithImplicitWait(int implicitWait, Runnable runnable) {
+        Objects.requireNonNull(runnable);
+        try {
+            // Disable implicitlyWait
+            setImplicitWait(Math.max(0, implicitWait), TimeUnit.MILLISECONDS);
+            runnable.run();
         } finally {
             setImplicitWait();
         }
