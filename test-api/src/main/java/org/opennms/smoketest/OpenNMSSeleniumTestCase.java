@@ -1457,9 +1457,7 @@ public class OpenNMSSeleniumTestCase {
                 if (requisitionExists(foreignSource)) {
                     // make sure the requisition is deleted
                     sendDelete("/rest/requisitions/" + foreignSourceUrlFragment);
-                    sendDelete("/rest/requisitions/deployed/" + foreignSourceUrlFragment);
                     sendDelete("/rest/foreignSources/" + foreignSourceUrlFragment);
-                    sendDelete("/rest/foreignSources/deployed/" + foreignSourceUrlFragment);
                 }
                 Thread.sleep(1000);
             } catch (final Exception e) {
