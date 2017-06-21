@@ -4,7 +4,7 @@
 Name:			debian-shunt
 Summary:		Placeholder package to make RPM on debian happy
 Version:		1.0
-Release:		8
+Release:		9
 License:		Public Domain
 Group:			Development/Tools
 BuildArch:		noarch
@@ -13,6 +13,13 @@ AutoReqProv:		no
 
 Provides: /bin/sh
 Provides: /bin/bash
+Provides: /usr/bin/sudo
+Provides: /usr/sbin/groupadd
+Provides: /usr/bin/getent
+Provides: /usr/bin/id
+Provides: /sbin/nologin
+Provides: /usr/sbin/nologin
+Provides: /usr/sbin/useradd
 Provides: jrrd = 1.0.9
 Provides: jrrd2 = 2.0.3
 Provides: jicmp = 2.0.0
