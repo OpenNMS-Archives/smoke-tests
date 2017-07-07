@@ -39,6 +39,10 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URI;
 import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -117,9 +121,6 @@ import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
 
-import com.google.common.base.Joiner;
-import com.google.common.base.Predicate;
-import com.google.common.io.Files;
 import com.thoughtworks.selenium.SeleniumException;
 
 public class OpenNMSSeleniumTestCase {
@@ -247,12 +248,11 @@ public class OpenNMSSeleniumTestCase {
             if (m_driver != null && m_driver instanceof TakesScreenshot) {
                 final TakesScreenshot shot = (TakesScreenshot)m_driver;
                 try {
-                    final File from = shot.getScreenshotAs(OutputType.FILE);
-                    final String screenshotFileName = "target" + File.separator + "screenshots" + File.separator + description.getClassName() + "." + testName + ".png";
-                    final File to = new File(screenshotFileName);
+                    final Path from = shot.getScreenshotAs(OutputType.FILE).toPath();
+                    final Path to = Paths.get("target", "screenshots", description.getClassName() + "." + testName + ".png");
                     LOG.debug("Screenshot saved to: {}", from);
                     try {
-                        to.getParentFile().mkdirs();
+                        Files.createDirectories(to.getParent());
                         Files.move(from, to);
                         LOG.debug("Screenshot moved to: {}", to);
                     } catch (final IOException ioe) {
@@ -263,6 +263,20 @@ public class OpenNMSSeleniumTestCase {
                 }
             } else {
                 LOG.debug("Driver can't take screenshots.");
+            }
+            try {
+                LOG.debug("Attempting to dump DOM.");
+                final String domText = m_driver.findElement(By.tagName("html")).getAttribute("innerHTML");
+                final Path to = Paths.get("target", "contents", description.getClassName() + "." + testName + ".html");
+                try {
+                    Files.createDirectories(to.getParent());
+                    Files.write(to, domText.getBytes(StandardCharsets.UTF_8));
+                    LOG.debug("Wrote DOM to {}", to);
+                } catch (final Exception eDOMfile) {
+                    LOG.warn("Failed to dump DOM to {}", to, eDOMfile);
+                }
+            } catch (final Exception eDOM) {
+                LOG.debug("Failed to dump DOM: {}", eDOM.getMessage(), eDOM);
             }
             LOG.debug("Current URL: {}", m_driver.getCurrentUrl());
             m_driver.navigate().back();
@@ -993,7 +1007,11 @@ public class OpenNMSSeleniumTestCase {
      * @see https://code.google.com/p/selenium/issues/detail?id=8180
      */
     protected WebElement enterText(final By selector, final CharSequence... text) {
-        final String textString = Joiner.on("").join(text);
+        final StringBuilder sb = new StringBuilder();
+        for (final CharSequence seq : text) {
+            sb.append(seq);
+        }
+        final String textString = sb.toString();
         LOG.debug("Enter text: '{}' into selector: '{}'", text, selector);
 
         // First, attempt to focus on the element before typing
@@ -1050,8 +1068,9 @@ public class OpenNMSSeleniumTestCase {
     }
 
     protected void waitForValue(final By selector, final String value) {
-        wait.until(new Predicate<WebDriver>() {
-            @Override public boolean apply(final WebDriver driver) {
+        wait.until(new ExpectedCondition<Boolean>() {
+            @Override
+            public Boolean apply(final WebDriver driver) {
                 return value.equals(driver.findElement(selector).getAttribute("value"));
             }
         });
