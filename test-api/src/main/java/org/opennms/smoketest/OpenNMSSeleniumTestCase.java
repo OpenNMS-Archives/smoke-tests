@@ -89,7 +89,6 @@ import org.junit.rules.TestWatcher;
 import org.junit.runner.Description;
 import org.opennms.test.system.api.NewTestEnvironment.ContainerAlias;
 import org.opennms.test.system.api.TestEnvironment;
-import org.opennms.test.system.api.TestEnvironmentBuilder;
 import org.openqa.selenium.Alert;
 import org.openqa.selenium.By;
 import org.openqa.selenium.Dimension;
@@ -134,43 +133,11 @@ public class OpenNMSSeleniumTestCase {
     private static final Logger LOG = LoggerFactory.getLogger(OpenNMSSeleniumTestCase.class);
     private static final String APACHE_LOG_LEVEL = "INFO"; // change this to help debug smoke tests
 
-    private static boolean m_useDocker = Boolean.getBoolean("org.opennms.smoketest.docker");
-    private static TestEnvironment m_testEnvironment = null;
-
     @ClassRule
-    public static final TestEnvironment getTestEnvironment() {
-        if (m_useDocker) {
-            LOG.warn("Setting up Docker test environment.");
-            try {
-                final TestEnvironmentBuilder builder = TestEnvironment.builder().opennms();
-                configureTestEnvironment(builder);
-                m_testEnvironment = builder.build();
-            } catch (final Throwable t) {
-                throw new RuntimeException(t);
-            }
-        }
-        if (m_testEnvironment == null) {
-            LOG.warn("Setting up local test environment.");
-            m_testEnvironment = new LocalTestEnvironment();
-        }
-        return m_testEnvironment;
-    }
-
-    public static void configureTestEnvironment(final TestEnvironmentBuilder builder) {
-        builder.skipTearDown(Boolean.getBoolean("org.opennms.smoketest.docker.skipTearDown"));
-        builder.useExisting(Boolean.getBoolean("org.opennms.smoketest.docker.useExisting"));
-
-        builder.withOpenNMSEnvironment()
-                .optIn(false)
-                .addFile(OpenNMSSeleniumTestCase.class.getResource("etc/monitoring-locations.xml"), "etc/monitoring-locations.xml");
-    }
-
-    public static void assumeDockerEnabled() {
-        Assume.assumeTrue("Docker is required for this test!  Enable it by setting -Dorg.opennms.smoketest.docker=true when running.", m_useDocker);
-    }
+    private static TestEnvironmentSetup testEnvironmentSetup = TestEnvironmentSetup.DEFAULTS;
 
     public static boolean isDockerEnabled() {
-        return m_useDocker;
+        return testEnvironmentSetup.isDockerEnabled();
     }
 
     private static final boolean setLevel(final String pack, final String level) {
@@ -242,14 +209,18 @@ public class OpenNMSSeleniumTestCase {
     protected WebDriverWait wait = null;
     protected WebDriverWait requisitionWait = null;
 
+    private TestEnvironment getTestEnvironment() {
+        return testEnvironmentSetup.getTestEnvironment();
+    }
+
     public String getServerAddress() {
-        return m_testEnvironment.getServiceAddress(ContainerAlias.OPENNMS, 8980).getAddress().getHostAddress();
+        return getTestEnvironment().getServiceAddress(ContainerAlias.OPENNMS, 8980).getAddress().getHostAddress();
     }
     public int getServerHttpPort() {
-        return m_testEnvironment.getServiceAddress(ContainerAlias.OPENNMS, 8980).getPort();
+        return getTestEnvironment().getServiceAddress(ContainerAlias.OPENNMS, 8980).getPort();
     }
     public int getServerEventPort() {
-        return m_testEnvironment.getServiceAddress(ContainerAlias.OPENNMS, 5817).getPort();
+        return getTestEnvironment().getServiceAddress(ContainerAlias.OPENNMS, 5817).getPort();
     }
     public String getBaseUrl() {
         return new StringBuilder()
@@ -1399,7 +1370,7 @@ public class OpenNMSSeleniumTestCase {
                     // 400 because we return that if you try to delete
                     // something that is already deleted
                     // 404 because it's OK if it's already not there
-                    if (status >= 200 && status < 300 || status == 400 || status == 404) {
+                    if (status >= 200 && status < 300 || status == 400 || status == 404 || status == 500) {
                         final HttpEntity entity = response.getEntity();
                         if (entity != null) {
                             responseText = EntityUtils.toString(entity);
@@ -1649,16 +1620,24 @@ public class OpenNMSSeleniumTestCase {
         LOG.debug("sendPost: url={}, expectedResponse={}, body={}", urlFragment, expectedResponse, body);
         final HttpPost post = new HttpPost(buildUrl(urlFragment));
         post.setEntity(new StringEntity(body, ContentType.APPLICATION_XML));
-        final Integer response = doRequest(post);
+        final ResponseData responseData = getRequest(post);
+        final Integer response = responseData != null ? responseData.getStatus() : null;
         if (expectedResponse == null) {
             if (response == null || (response != 303 && response != 200 && response != 201 && response != 202)) {
-                throw new RuntimeException("Bad response code! (" + response + "; expected 200, 201, 202, or 303)");
+                throw createBadResponseException(responseData, "200, 201, 202 or 303");
             }
         } else {
             if (!expectedResponse.equals(response)) {
-                throw new RuntimeException("Bad response code! (" + response + "; expected " + expectedResponse + ")");
+                throw createBadResponseException(responseData, Integer.toString(expectedResponse));
             }
         }
+    }
+
+    private RuntimeException createBadResponseException(ResponseData responseData, String expectedResponse) {
+        if (responseData.getResponseText() != null) {
+            return new RuntimeException("Bad response code! (" + responseData.getStatus() + "; expected " + expectedResponse + "; message: " + responseData.getResponseText() + ")");
+        }
+        return new RuntimeException("Bad response code! (" + responseData.getStatus() + "; expected " + expectedResponse + ")");
     }
 
     protected void sendPut(final String urlFragment, final String body) throws ClientProtocolException, IOException, InterruptedException {
