@@ -134,7 +134,7 @@ public class OpenNMSSeleniumTestCase {
     private static final String APACHE_LOG_LEVEL = "INFO"; // change this to help debug smoke tests
 
     @ClassRule
-    private static TestEnvironmentSetup testEnvironmentSetup = TestEnvironmentSetup.DEFAULTS;
+    public static TestEnvironmentSetup testEnvironmentSetup = TestEnvironmentSetup.DEFAULTS;
 
     public static boolean isDockerEnabled() {
         return testEnvironmentSetup.isDockerEnabled();
