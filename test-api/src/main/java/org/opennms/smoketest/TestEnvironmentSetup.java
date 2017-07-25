@@ -35,7 +35,9 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import org.junit.Assume;
-import org.junit.rules.ExternalResource;
+import org.junit.rules.TestRule;
+import org.junit.runner.Description;
+import org.junit.runners.model.Statement;
 import org.opennms.test.system.api.NewTestEnvironment;
 import org.opennms.test.system.api.TestEnvironment;
 import org.opennms.test.system.api.TestEnvironmentBuilder;
@@ -44,7 +46,7 @@ import org.slf4j.LoggerFactory;
 
 import com.spotify.docker.client.messages.ContainerInfo;
 
-public class TestEnvironmentSetup extends ExternalResource implements TestEnvironment {
+public class TestEnvironmentSetup implements TestEnvironment, TestRule {
 
     public static final TestEnvironmentSetup DEFAULTS = new TestEnvironmentSetup().withDefaults();
 
@@ -87,24 +89,33 @@ public class TestEnvironmentSetup extends ExternalResource implements TestEnviro
     }
 
     @Override
-    protected void before() throws Throwable {
-        if (enforceDocker) {
-            Assume.assumeTrue("Docker is required for this test!  Enable it by setting -Dorg.opennms.smoketest.docker=true when running.", isDockerEnabled());
-        }
-        if (useDocker) {
-            LOG.warn("Setting up Docker test environment.");
-            try {
-                configureTestEnvironment(builder);
-                consumerList.forEach(consumer -> consumer.accept(builder));
-                testEnvironment = builder.build();
-            } catch (final Throwable t) {
-                throw new RuntimeException(t);
+    public Statement apply(Statement base, Description description) {
+        return new Statement() {
+            @Override
+            public void evaluate() throws Throwable {
+                if (enforceDocker) {
+                    Assume.assumeTrue("Docker is required for this test!  Enable it by setting -Dorg.opennms.smoketest.docker=true when running.", isDockerEnabled());
+                }
+                if (useDocker) {
+                    LOG.warn("Setting up Docker test environment.");
+                    try {
+                        configureTestEnvironment(builder);
+
+                        consumerList.forEach(consumer -> consumer.accept(builder));
+                        testEnvironment = builder.build();
+
+                        // Also apply to actual environment
+                        testEnvironment.apply(base, description).evaluate();
+                    } catch (final Throwable t) {
+                        throw new RuntimeException(t);
+                    }
+                }
+                if (testEnvironment == null) {
+                    LOG.warn("Setting up local test environment.");
+                    testEnvironment = new LocalTestEnvironment();
+                }
             }
-        }
-        if (testEnvironment == null) {
-            LOG.warn("Setting up local test environment.");
-            testEnvironment = new LocalTestEnvironment();
-        }
+        };
     }
 
     public boolean isDockerEnabled() {
