@@ -299,7 +299,19 @@ sub run_smoke_tests {
 	print "- running OpenNMS smoke tests:\n";
 
 	chdir(File::Spec->catdir($OPENNMS_TESTDIR, "smoke-test"));
-	system($XVFB_RUN, '--wait=20', '--server-args=-screen 0 1920x1080x24', '--server-num=80', '--auto-servernum', '--listen-tcp', '../compile.pl', '-Dsurefire.rerunFailingTestsCount=3', '-Dfailsafe.rerunFailingTestsCount=3', '-Dorg.opennms.smoketest.logLevel=INFO', '-Dsmoke=true', '-t') == 0 or fail(1, "failed to run smoke tests: $!");
+	system($XVFB_RUN,
+		'--wait=20',
+		'--server-args=-screen 0 1920x1080x24',
+		'--server-num=80',
+		'--auto-servernum',
+		'--listen-tcp',
+		'../compile.pl',
+		'-Dpoller.logfile=/tmp/remote-poller.log.' . $$,
+		'-Dsurefire.rerunFailingTestsCount=3',
+		'-Dfailsafe.rerunFailingTestsCount=3',
+		'-Dorg.opennms.smoketest.logLevel=INFO',
+		'-Dsmoke=true',
+		'-t') == 0 or fail(1, "failed to run smoke tests: $!");
 }
 
 sub remove_opennms {
