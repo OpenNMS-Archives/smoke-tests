@@ -306,6 +306,7 @@ sub run_smoke_tests {
 		'--auto-servernum',
 		'--listen-tcp',
 		'../compile.pl',
+		'-Dpoller.logfile=/tmp/remote-poller.log.' . $$,
 		'-Dsurefire.rerunFailingTestsCount=3',
 		'-Dfailsafe.rerunFailingTestsCount=3',
 		'-Dorg.opennms.smoketest.logLevel=INFO',
