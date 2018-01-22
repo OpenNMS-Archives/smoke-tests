@@ -52,6 +52,7 @@ import java.util.Properties;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.logging.Level;
 
 import javax.xml.parsers.DocumentBuilder;
@@ -109,6 +110,7 @@ import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.firefox.FirefoxBinary;
 import org.openqa.selenium.firefox.FirefoxDriver;
+import org.openqa.selenium.firefox.FirefoxOptions;
 import org.openqa.selenium.firefox.FirefoxProfile;
 import org.openqa.selenium.interactions.Actions;
 import org.openqa.selenium.logging.LogEntries;
@@ -127,8 +129,6 @@ import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
-
-import com.thoughtworks.selenium.SeleniumException;
 
 public class OpenNMSSeleniumTestCase {
     private static final Logger LOG = LoggerFactory.getLogger(OpenNMSSeleniumTestCase.class);
@@ -351,7 +351,7 @@ public class OpenNMSSeleniumTestCase {
             if (m_driver != null) {
                 try {
                     m_driver.get(getBaseUrl() + "opennms/j_spring_security_logout");
-                } catch (final SeleniumException e) {
+                } catch (final Exception e) {
                     // don't worry about it, this is just for logging out
                 }
                 try {
@@ -420,7 +420,7 @@ public class OpenNMSSeleniumTestCase {
             }
             if (driver == null) { // fallback to firefox
                 FirefoxProfile fp = new FirefoxProfile();
-                fp.setEnableNativeEvents(false);
+                //fp.setEnableNativeEvents(false);
                 fp.setPreference("app.update.auto", false);
                 fp.setPreference("app.update.enabled", false);
                 fp.setPreference("app.update.silent", false);
@@ -429,7 +429,9 @@ public class OpenNMSSeleniumTestCase {
                 fp.setPreference("startup.homepage_welcome_url.additional", "about:blank");
                 final DesiredCapabilities caps = DesiredCapabilities.firefox();
                 customizeCapabilities(caps);
-                driver = new FirefoxDriver(new FirefoxBinary(), fp, caps);
+                final FirefoxOptions fo = new FirefoxOptions(caps);
+                fo.setBinary(new FirefoxBinary());
+                driver = new FirefoxDriver(fo);
             }
         }
         return driver;
@@ -650,7 +652,7 @@ public class OpenNMSSeleniumTestCase {
         wait.until(ExpectedConditions.elementToBeClickable(By.name("Login")));
     }
 
-    protected ExpectedCondition<Boolean> pageContainsText(final String text) {
+    protected Function<WebDriver, Boolean> pageContainsText(final String text) {
         LOG.debug("pageContainsText: {}", text);
         final String escapedText = text.replace("\'", "\\\'");
         return new ExpectedCondition<Boolean>() {

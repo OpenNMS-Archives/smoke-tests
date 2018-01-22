@@ -5,11 +5,11 @@
   <name>OpenNMS Smoke Test</name>
   <groupId>org.opennms.smoke</groupId>
   <artifactId>org.opennms.smoke.test-api</artifactId>
-  <version>2-SNAPSHOT</version>
+  <version>4-SNAPSHOT</version>
 
   <properties>
     <opennmsVersion>17.1.1</opennmsVersion>
-    <seleniumVersion>2.53.1</seleniumVersion>
+    <seleniumVersion>3.8.1</seleniumVersion>
 
     <jsoupVersion>1.8.3</jsoupVersion>
     <junitVersion>4.12</junitVersion>
@@ -25,6 +25,17 @@
     <dependency>
       <groupId>org.seleniumhq.selenium</groupId>
       <artifactId>selenium-java</artifactId>
+      <version>${seleniumVersion}</version>
+      <exclusions>
+        <exclusion>
+          <groupId>commons-logging</groupId>
+          <artifactId>commons-logging</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.seleniumhq.selenium</groupId>
+      <artifactId>selenium-support</artifactId>
       <version>${seleniumVersion}</version>
       <exclusions>
         <exclusion>
