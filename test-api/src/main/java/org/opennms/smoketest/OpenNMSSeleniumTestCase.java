@@ -882,6 +882,7 @@ public class OpenNMSSeleniumTestCase {
     }
 
     public void clickElement(final By by) {
+        LOG.debug("clickElement: {}", by);
         waitUntil(new Callable<WebElement>() {
             @Override public WebElement call() throws Exception {
                 final WebElement el = getElementImmediately(by);
@@ -896,6 +897,7 @@ public class OpenNMSSeleniumTestCase {
     }
 
     public WebElement waitForElement(final WebDriverWait w, final By by) {
+        LOG.debug("waitForElement: {}", by);
         return waitUntil(null, w, new Callable<WebElement>() {
             @Override public WebElement call() throws Exception {
                 final WebElement el = getDriver().findElement(by);
