@@ -37,6 +37,7 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -222,6 +223,11 @@ public class OpenNMSSeleniumTestCase {
     public int getServerEventPort() {
         return getTestEnvironment().getServiceAddress(ContainerAlias.OPENNMS, 5817).getPort();
     }
+
+    public InetSocketAddress getPostgresService() {
+        return m_testEnvironment.getServiceAddress(ContainerAlias.POSTGRES, 5432);
+    }
+
     public String getBaseUrl() {
         return new StringBuilder()
                 .append("http://").append(getServerAddress())
