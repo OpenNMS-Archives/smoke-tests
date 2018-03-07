@@ -225,7 +225,7 @@ public class OpenNMSSeleniumTestCase {
     }
 
     public InetSocketAddress getPostgresService() {
-        return m_testEnvironment.getServiceAddress(ContainerAlias.POSTGRES, 5432);
+        return getTestEnvironment().getServiceAddress(ContainerAlias.POSTGRES, 5432);
     }
 
     public String getBaseUrl() {
