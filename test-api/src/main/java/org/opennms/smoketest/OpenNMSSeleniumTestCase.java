@@ -35,8 +35,6 @@ import static org.junit.Assert.fail;
 import java.io.File;
 import java.io.IOException;
 import java.io.StringReader;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -49,7 +47,6 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Objects;
-import java.util.Properties;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -133,87 +130,24 @@ import com.thoughtworks.selenium.SeleniumException;
 
 public class OpenNMSSeleniumTestCase {
     private static final Logger LOG = LoggerFactory.getLogger(OpenNMSSeleniumTestCase.class);
-    private static final String APACHE_LOG_LEVEL = "INFO"; // change this to help debug smoke tests
-
-    private static boolean m_useDocker = Boolean.getBoolean("org.opennms.smoketest.docker");
-    private static TestEnvironment m_testEnvironment = null;
 
     @ClassRule
-    public static final TestEnvironment getTestEnvironment() {
-        if (m_useDocker) {
-            LOG.warn("Setting up Docker test environment.");
-            try {
-                final TestEnvironmentBuilder builder = TestEnvironment.builder().opennms();
-                configureTestEnvironment(builder);
-                m_testEnvironment = builder.build();
-            } catch (final Throwable t) {
-                throw new RuntimeException(t);
-            }
-        }
-        if (m_testEnvironment == null) {
-            LOG.warn("Setting up local test environment.");
-            m_testEnvironment = new LocalTestEnvironment();
-        }
-        return m_testEnvironment;
-    }
-
-    public static void configureTestEnvironment(final TestEnvironmentBuilder builder) {
-        builder.skipTearDown(Boolean.getBoolean("org.opennms.smoketest.docker.skipTearDown"));
-        builder.useExisting(Boolean.getBoolean("org.opennms.smoketest.docker.useExisting"));
-
-        builder.withOpenNMSEnvironment()
-                .optIn(false)
-                .addFile(OpenNMSSeleniumTestCase.class.getResource("etc/monitoring-locations.xml"), "etc/monitoring-locations.xml");
-    }
+    public static final SmokeTestEnvironment m_testEnvironment = SmokeTestEnvironment.DEFAULT;
 
     public static void assumeDockerEnabled() {
-        Assume.assumeTrue("Docker is required for this test!  Enable it by setting -Dorg.opennms.smoketest.docker=true when running.", m_useDocker);
+        Assume.assumeTrue("Docker is required for this test!  Enable it by setting -Dorg.opennms.smoketest.docker=true when running.", m_testEnvironment.isDocker());
     }
 
     public static boolean isDockerEnabled() {
-        return m_useDocker;
+        return m_testEnvironment.isDocker();
     }
 
-    private static final boolean setLevel(final String pack, final String level) {
-        final Logger logger = org.slf4j.LoggerFactory.getLogger(pack);
-        if (logger instanceof ch.qos.logback.classic.Logger) {
-            ((ch.qos.logback.classic.Logger) logger).setLevel(ch.qos.logback.classic.Level.valueOf(level));
-            return true;
-        }
-        return false;
-    }
-
-    static {
-        final String logLevel = System.getProperty("org.opennms.smoketest.logLevel", "DEBUG");
-
-        /* Set up the mock log appender, if it is in the classpath */
-        final Properties props = new Properties();
-        props.put("log4j.logger.org.apache.cxf", APACHE_LOG_LEVEL);
-        props.put("log4j.logger.org.apache.cxf.phase.PhaseInterceptorChain", "ERROR");
-        props.put("log4j.logger.org.apache.http", APACHE_LOG_LEVEL);
-        try {
-            final Class<?> mockLogAppender = Class.forName("org.opennms.core.test.MockLogAppender");
-            if (mockLogAppender != null) {
-                final Method m = mockLogAppender.getMethod("setupLogging", Boolean.TYPE, String.class, Properties.class);
-                if (m != null) {
-                    m.invoke(null, true, logLevel, props);
-                }
-            }
-        } catch (final ClassNotFoundException | NoSuchMethodException | SecurityException | IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
-            throw new RuntimeException(e);
-        }
-
-        /* Set up apache commons directly, if possible */
-        System.setProperty("org.apache.commons.logging.Log", "org.apache.commons.logging.impl.SimpleLog");
-        System.setProperty("org.apache.commons.logging.simplelog.log.org.apache.cxf", APACHE_LOG_LEVEL);
-        System.setProperty("org.apache.commons.logging.simplelog.log.org.apache.cxf.phase.PhaseInterceptorChain", "ERROR");
-        System.setProperty("org.apache.commons.logging.simplelog.log.org.apache.http", APACHE_LOG_LEVEL);
-
-        /* Set up logback, if it's there */
-        setLevel(ch.qos.logback.classic.Logger.ROOT_LOGGER_NAME, logLevel);
-        setLevel("org.apache.cxf", APACHE_LOG_LEVEL);
-        setLevel("org.apache.cxf.phase.PhaseInterceptorChain", "ERROR");
-        setLevel("org.apache.http", APACHE_LOG_LEVEL);
+    /**
+     * @deprecated use {@link SmokeTestEnvironment#applyDefaults(TestEnvironmentBuilder)} instead.
+     */
+    @Deprecated
+    public static void configureTestEnvironment(final TestEnvironmentBuilder builder) {
+       SmokeTestEnvironment.applyDefaults(builder);
     }
 
     static {
@@ -244,17 +178,17 @@ public class OpenNMSSeleniumTestCase {
     protected WebDriverWait requisitionWait = null;
 
     public String getServerAddress() {
-        return m_testEnvironment.getServiceAddress(ContainerAlias.OPENNMS, 8980).getAddress().getHostAddress();
+        return m_testEnvironment.getServerAddress();
     }
     public int getServerHttpPort() {
-        return m_testEnvironment.getServiceAddress(ContainerAlias.OPENNMS, 8980).getPort();
+        return m_testEnvironment.getServerHttpPort();
     }
     public int getServerEventPort() {
-        return m_testEnvironment.getServiceAddress(ContainerAlias.OPENNMS, 5817).getPort();
+        return m_testEnvironment.getServerEventPort();
     }
 
     public InetSocketAddress getPostgresService() {
-        return m_testEnvironment.getServiceAddress(ContainerAlias.POSTGRES, 5432);
+        return m_testEnvironment.getPostgresService();
     }
 
     public String getBaseUrl() {
