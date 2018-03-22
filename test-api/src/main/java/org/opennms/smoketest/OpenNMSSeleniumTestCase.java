@@ -263,7 +263,7 @@ public class OpenNMSSeleniumTestCase {
                 .append(":").append(getServerHttpPort()).append("/")
                 .toString();
     }
-    
+
     protected String buildUrl(String urlFragment) {
         return getBaseUrl() + "opennms" + (urlFragment.startsWith("/")? urlFragment : "/" + urlFragment);
     }
@@ -795,16 +795,7 @@ public class OpenNMSSeleniumTestCase {
     protected void clickMenuItem(final String menuItemText, final String submenuItemText, final String submenuItemHref) {
         LOG.debug("clickMenuItem: itemText={}, submenuItemText={}, submenuHref={}", menuItemText, submenuItemText, submenuItemHref);
 
-        final Actions action = new Actions(m_driver);
-
-        final WebElement menuElement;
-        if (menuItemText.startsWith("name=")) {
-            final String menuItemName = menuItemText.replaceFirst("name=", "");
-            menuElement = findElementByName(menuItemName);
-        } else {
-            menuElement = findElementByXpath("//a[contains(text(), '" + menuItemText + "')]");
-        }
-        action.moveToElement(menuElement, 2, 2).perform();
+        final WebElement menuElement = moveAndWaitForPopup(menuItemText, submenuItemText != null);
 
         final WebElement submenuElement;
         if (submenuItemText != null) {
@@ -827,6 +818,45 @@ public class OpenNMSSeleniumTestCase {
             // wait until the element is visible, not just present in the DOM
             wait.until(ExpectedConditions.visibilityOf(submenuElement));
             submenuElement.click();
+        }
+    }
+
+    public WebElement moveAndWaitForPopup(final String menuItemText) {
+        return moveAndWaitForPopup(menuItemText, false);
+    }
+
+    public WebElement moveAndWaitForPopup(final String menuItemText, final boolean doWait) {
+        try {
+            setImplicitWait(0, TimeUnit.MILLISECONDS);
+            return wait.until(new ExpectedCondition<WebElement>() {
+                @Override public WebElement apply(final WebDriver driver) {
+                    System.err.println("trying menu hover for " + menuItemText);
+                    final Actions action = new Actions(driver);
+
+                    final WebElement menuElement;
+                    if (menuItemText.startsWith("name=")) {
+                        final String menuItemName = menuItemText.replaceFirst("name=", "");
+                        menuElement = findElementByName(menuItemName);
+                    } else {
+                        menuElement = findElementByXpath("//a[contains(text(), '" + menuItemText + "')]");
+                    }
+                    action.moveToElement(menuElement, 2, 2).perform();
+                    if (doWait) {
+                        final WebElement parent = menuElement.findElement(By.xpath(".."));
+                        System.err.println("moveAndWaitForPopup: menu parent=" + parent);
+                        final WebElement dropdown = parent.findElement(By.cssSelector("ul.dropdown-menu"));
+                        System.err.println("moveAndWaitForPopup: menu dropdown=" + dropdown);
+                        if (dropdown.isEnabled() && dropdown.isDisplayed()) {
+                            return menuElement;
+                        }
+                        return null;
+                    } else {
+                        return menuElement;
+                    }
+                }
+            });
+        } finally {
+            setImplicitWait();
         }
     }
 
@@ -1656,7 +1686,7 @@ public class OpenNMSSeleniumTestCase {
     protected void sendPost(final String urlFragment, final String body) throws ClientProtocolException, IOException, InterruptedException {
         sendPost(urlFragment, body, null);
     }
-    
+
     protected void sendPost(final String urlFragment, final String body, final Integer expectedResponse) throws ClientProtocolException, IOException, InterruptedException {
         LOG.debug("sendPost: url={}, expectedResponse={}, body={}", urlFragment, expectedResponse, body);
         final HttpPost post = new HttpPost(buildUrl(urlFragment));
