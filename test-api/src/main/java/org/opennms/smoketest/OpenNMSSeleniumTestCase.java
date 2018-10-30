@@ -475,7 +475,7 @@ public class OpenNMSSeleniumTestCase {
             paths.add("/usr/local/sbin");
             LOG.debug("findChrome(): paths = {}", paths);
             for (final String directory : paths) {
-                for (final String exeName : new String[] { "chromium-browser", "chrome", "google-chrome" }) {
+                for (final String exeName : new String[] { "chromium", "chromium-browser", "chrome", "google-chrome" }) {
                     final File chromeFile = new File(directory + File.separator + exeName + extension);
                     LOG.debug("findChrome(): trying {}", chromeFile);
                     if (isExectuable(chromeFile)) {
