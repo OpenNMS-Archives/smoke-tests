@@ -418,6 +418,7 @@ public class OpenNMSSeleniumTestCase {
                 if (chrome != null) {
                     final ChromeOptions options = new ChromeOptions();
                     options.setBinary(chrome);
+		    options.addArguments("--disable-notifications");
                     final DesiredCapabilities caps = DesiredCapabilities.chrome();
                     customizeCapabilities(caps);
                     caps.setCapability(ChromeOptions.CAPABILITY, options);
@@ -430,6 +431,7 @@ public class OpenNMSSeleniumTestCase {
                 fp.setPreference("app.update.auto", false);
                 fp.setPreference("app.update.enabled", false);
                 fp.setPreference("app.update.silent", false);
+		fp.setPreference("dom.webnotifications.enabled", "false");
                 fp.setPreference("browser.startup.homepage", "about:blank");
                 fp.setPreference("startup.homepage_welcome_url", "about:blank");
                 fp.setPreference("startup.homepage_welcome_url.additional", "about:blank");
