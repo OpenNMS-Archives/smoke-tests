@@ -1328,19 +1328,31 @@ public class OpenNMSSeleniumTestCase {
     }
 
     public <T> T waitUntil(final Long implicitWait, final WebDriverWait w, final Callable<T> callable) {
+        return waitUntil(implicitWait, w, new ExpectedCondition<T>() {
+            @Override
+            public T apply(final WebDriver driver) {
+                try {
+                    return callable.call();
+                } catch (final Throwable t) {
+                    return null;
+                }
+            }
+        });
+    }
+
+    public <T> T waitUntil(final ExpectedCondition<T> condition) {
+        return waitUntil(null, wait, condition);
+    }
+
+    public <T> T waitUntil(final WebDriverWait w, final ExpectedCondition<T> condition) {
+        return waitUntil(null, w, condition);
+    }
+
+    public <T> T waitUntil(final Long implicitWait, final WebDriverWait w, final ExpectedCondition<T> condition) {
         final WebDriverWait wdw = w == null? wait : w;
         try {
             setImplicitWait(implicitWait == null? 50 : implicitWait, TimeUnit.MILLISECONDS);
-            return wdw.until(new ExpectedCondition<T>() {
-                @Override
-                public T apply(final WebDriver driver) {
-                    try {
-                        return callable.call();
-                    } catch (final Throwable t) {
-                        return null;
-                    }
-                }
-            });
+            return wdw.until(condition);
         } finally {
             setImplicitWait();
         }
