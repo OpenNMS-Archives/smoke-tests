@@ -215,17 +215,21 @@ public class OpenNMSSeleniumTestCase {
     }
 
     public String getServerAddress() {
-        return getTestEnvironment().getServiceAddress(ContainerAlias.OPENNMS, 8980).getAddress().getHostAddress();
+        return getServiceAddress(ContainerAlias.OPENNMS, 8980).getAddress().getHostAddress();
     }
     public int getServerHttpPort() {
-        return getTestEnvironment().getServiceAddress(ContainerAlias.OPENNMS, 8980).getPort();
+        return getServiceAddress(ContainerAlias.OPENNMS, 8980).getPort();
     }
     public int getServerEventPort() {
-        return getTestEnvironment().getServiceAddress(ContainerAlias.OPENNMS, 5817).getPort();
+        return getServiceAddress(ContainerAlias.OPENNMS, 5817).getPort();
     }
 
     public InetSocketAddress getPostgresService() {
         return getTestEnvironment().getServiceAddress(ContainerAlias.POSTGRES, 5432);
+    }
+
+    public InetSocketAddress getServiceAddress(ContainerAlias containerAlias, int port) {
+        return getTestEnvironment().getServiceAddress(containerAlias, port);
     }
 
     public String getBaseUrl() {
