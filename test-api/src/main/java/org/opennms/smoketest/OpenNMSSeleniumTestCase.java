@@ -288,7 +288,7 @@ public class OpenNMSSeleniumTestCase {
             LOG.debug("Using driver: {}", m_driver);
             setImplicitWait();
             m_driver.manage().window().setPosition(new Point(0,0));
-            m_driver.manage().window().setSize(new Dimension(2048, 10000));
+            //m_driver.manage().window().setSize(new Dimension(2048, 10000));
             wait = new WebDriverWait(m_driver, TimeUnit.SECONDS.convert(LOAD_TIMEOUT, TimeUnit.MILLISECONDS));
             requisitionWait = new WebDriverWait(m_driver, TimeUnit.SECONDS.convert(REQ_TIMEOUT, TimeUnit.MILLISECONDS));
 
