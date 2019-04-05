@@ -1421,7 +1421,7 @@ public class OpenNMSSeleniumTestCase {
 
     public long getNodesInDatabase(final String foreignSource) {
         try {
-            final HttpGet request = new HttpGet(getBaseUrl() + "opennms/rest/nodes?foreignSource=" + URLEncoder.encode(foreignSource, "UTF-8"));
+            final HttpGet request = new HttpGet(getBaseUrlExternal() + "opennms/rest/nodes?foreignSource=" + URLEncoder.encode(foreignSource, "UTF-8"));
             final ResponseData rd = getRequest(request);
             LOG.debug("getNodesInDatabase: response={}", rd);
 
@@ -1439,7 +1439,7 @@ public class OpenNMSSeleniumTestCase {
         LOG.debug("requisitionExists: foreignSource={}", foreignSource);
         try {
             final String foreignSourceUrlFragment = URLEncoder.encode(foreignSource, "UTF-8");
-            final Integer status = doRequest(new HttpGet(getBaseUrl() + "opennms/rest/requisitions/" + foreignSourceUrlFragment));
+            final Integer status = doRequest(new HttpGet(getBaseUrlExternal() + "opennms/rest/requisitions/" + foreignSourceUrlFragment));
             return status == 200;
         } catch (final IOException | InterruptedException e) {
             throw new OpenNMSTestException(e);
@@ -1519,7 +1519,7 @@ public class OpenNMSSeleniumTestCase {
             sendPost("/rest/requisitions", xml);
             requisitionWait.until(new WaitForNodesInRequisition(expectedNodes));
 
-            final HttpPut request = new HttpPut(getBaseUrl() + "opennms/rest/requisitions/" + foreignSourceUrlFragment + "/import");
+            final HttpPut request = new HttpPut(getBaseUrlExternal() + "opennms/rest/requisitions/" + foreignSourceUrlFragment + "/import");
             final Integer status = doRequest(request);
             if (status == null || status < 200 || status >= 400) {
                 throw new OpenNMSTestException("Unknown status: " + status);
@@ -1543,7 +1543,7 @@ public class OpenNMSSeleniumTestCase {
         try {
             sendPost("/rest/foreignSources", xml);
             // make sure it gets written to disk
-            doRequest(new HttpGet(getBaseUrl() + "/rest/foreignSources"));
+            doRequest(new HttpGet(getBaseUrlExternal() + "/rest/foreignSources"));
             Thread.sleep(2000);
         } catch (final Exception e) {
             throw new OpenNMSTestException(e);
@@ -1566,12 +1566,12 @@ public class OpenNMSSeleniumTestCase {
 
     protected void deleteTestUser() throws Exception {
         LOG.debug("deleteTestUser()");
-        doRequest(new HttpDelete(getBaseUrl() + "opennms/rest/users/" + USER_NAME));
+        doRequest(new HttpDelete(getBaseUrlExternal() + "opennms/rest/users/" + USER_NAME));
     }
 
     protected void deleteTestGroup() throws Exception {
         LOG.debug("deleteTestGroup()");
-        doRequest(new HttpDelete(getBaseUrl() + "opennms/rest/groups/" + GROUP_NAME));
+        doRequest(new HttpDelete(getBaseUrlExternal() + "opennms/rest/groups/" + GROUP_NAME));
     }
 
     protected long getNodesInRequisition(final String foreignSource) {
