@@ -9,7 +9,7 @@
 
   <properties>
     <opennmsVersion>17.1.1</opennmsVersion>
-    <seleniumVersion>2.53.1</seleniumVersion>
+    <seleniumVersion>3.141.59</seleniumVersion>
 
     <jsoupVersion>1.8.3</jsoupVersion>
     <junitVersion>4.12</junitVersion>

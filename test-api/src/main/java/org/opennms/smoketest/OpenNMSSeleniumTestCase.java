@@ -38,7 +38,9 @@ import java.io.StringReader;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
+import java.net.MalformedURLException;
 import java.net.URI;
+import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -106,17 +108,11 @@ import org.openqa.selenium.TimeoutException;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebDriver.Timeouts;
 import org.openqa.selenium.WebElement;
-import org.openqa.selenium.chrome.ChromeDriver;
-import org.openqa.selenium.chrome.ChromeOptions;
-import org.openqa.selenium.firefox.FirefoxBinary;
-import org.openqa.selenium.firefox.FirefoxDriver;
-import org.openqa.selenium.firefox.FirefoxProfile;
 import org.openqa.selenium.interactions.Actions;
 import org.openqa.selenium.logging.LogEntries;
 import org.openqa.selenium.logging.LogEntry;
-import org.openqa.selenium.phantomjs.PhantomJSDriver;
-import org.openqa.selenium.phantomjs.PhantomJSDriverService;
 import org.openqa.selenium.remote.DesiredCapabilities;
+import org.openqa.selenium.remote.RemoteWebDriver;
 import org.openqa.selenium.support.ui.ExpectedCondition;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.Select;
@@ -128,8 +124,6 @@ import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
-
-import com.thoughtworks.selenium.SeleniumException;
 
 public class OpenNMSSeleniumTestCase {
     private static final Logger LOG = LoggerFactory.getLogger(OpenNMSSeleniumTestCase.class);
@@ -145,6 +139,7 @@ public class OpenNMSSeleniumTestCase {
             try {
                 final TestEnvironmentBuilder builder = TestEnvironment.builder().opennms();
                 configureTestEnvironment(builder);
+                builder.firefox();
                 m_testEnvironment = builder.build();
             } catch (final Throwable t) {
                 throw new RuntimeException(t);
@@ -262,14 +257,22 @@ public class OpenNMSSeleniumTestCase {
     }
 
     public String getBaseUrl() {
+        return "http://opennms:8980/";
+    }
+
+    public String getBaseUrlExternal() {
         return new StringBuilder()
                 .append("http://").append(getServerAddress())
                 .append(":").append(getServerHttpPort()).append("/")
                 .toString();
     }
-    
+
     protected String buildUrl(String urlFragment) {
         return getBaseUrl() + "opennms" + (urlFragment.startsWith("/")? urlFragment : "/" + urlFragment);
+    }
+
+    protected String buildUrlExternal(String urlFragment) {
+        return getBaseUrlExternal() + "opennms" + (urlFragment.startsWith("/")? urlFragment : "/" + urlFragment);
     }
 
     public String createBasicAuthHeader() {
@@ -361,7 +364,7 @@ public class OpenNMSSeleniumTestCase {
             if (m_driver != null) {
                 try {
                     m_driver.get(getBaseUrl() + "opennms/j_spring_security_logout");
-                } catch (final SeleniumException e) {
+                } catch (final Exception e) {
                     // don't worry about it, this is just for logging out
                 }
                 try {
@@ -397,54 +400,20 @@ public class OpenNMSSeleniumTestCase {
         if (m_driver != null) {
             return m_driver;
         }
-        WebDriver driver = null;
-        final String driverClass = System.getProperty("org.opennms.smoketest.webdriver.class", System.getProperty("webdriver.class"));
-        if (driverClass != null) {
-            try {
-                driver = (WebDriver)Class.forName(driverClass).newInstance();
-            } catch (final InstantiationException | IllegalAccessException | ClassNotFoundException e) {
-                throw new OpenNMSTestException(e);
-            }
-        }
 
-        // otherwise, PhantomJS if found, or fall back to Firefox
-        if (driver == null) {
-            if (usePhantomJS) {
-                final File phantomJS = findPhantomJS();
-                if (phantomJS != null) {
-                    final DesiredCapabilities caps = DesiredCapabilities.phantomjs();
-                    customizeCapabilities(caps);
-                    caps.setCapability(PhantomJSDriverService.PHANTOMJS_EXECUTABLE_PATH_PROPERTY, phantomJS.toString());
-                    driver = new PhantomJSDriver(caps);
-                }
-            } else if (useChrome) {
-                final File chrome = findChrome();
-                if (chrome != null) {
-                    final ChromeOptions options = new ChromeOptions();
-                    options.setBinary(chrome);
-		    options.addArguments("--disable-notifications");
-                    final DesiredCapabilities caps = DesiredCapabilities.chrome();
-                    customizeCapabilities(caps);
-                    caps.setCapability(ChromeOptions.CAPABILITY, options);
-                    driver = new ChromeDriver(caps);
-                }
-            }
-            if (driver == null) { // fallback to firefox
-                FirefoxProfile fp = new FirefoxProfile();
-                fp.setEnableNativeEvents(false);
-                fp.setPreference("app.update.auto", false);
-                fp.setPreference("app.update.enabled", false);
-                fp.setPreference("app.update.silent", false);
-		fp.setPreference("dom.webnotifications.enabled", "false");
-                fp.setPreference("browser.startup.homepage", "about:blank");
-                fp.setPreference("startup.homepage_welcome_url", "about:blank");
-                fp.setPreference("startup.homepage_welcome_url.additional", "about:blank");
-                final DesiredCapabilities caps = DesiredCapabilities.firefox();
-                customizeCapabilities(caps);
-                driver = new FirefoxDriver(new FirefoxBinary(), fp, caps);
-            }
-        }
+        final DesiredCapabilities caps = DesiredCapabilities.firefox();
+        customizeCapabilities(caps);
+        WebDriver driver = new RemoteWebDriver(getSeleniumAddress(), caps);
         return driver;
+    }
+
+    private URL getSeleniumAddress() {
+        final InetSocketAddress addr = m_testEnvironment.getServiceAddress(ContainerAlias.FIREFOX, 4444);
+        try {
+            return new URL("http", addr.getHostString(), addr.getPort(), "/wd/hub");
+        } catch (MalformedURLException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     // Hook to customize the behaviour of the Webdriver, as tests might need this functionality
@@ -1607,7 +1576,7 @@ public class OpenNMSSeleniumTestCase {
 
     protected long getNodesInRequisition(final String foreignSource) {
         try {
-            final HttpGet request = new HttpGet(getBaseUrl() + "opennms/rest/requisitions/" + URLEncoder.encode(foreignSource, "UTF-8"));
+            final HttpGet request = new HttpGet(getBaseUrlExternal() + "opennms/rest/requisitions/" + URLEncoder.encode(foreignSource, "UTF-8"));
             final ResponseData rd = getRequest(request);
             LOG.debug("getNodesInRequisition: response={}", rd);
 
@@ -1673,7 +1642,7 @@ public class OpenNMSSeleniumTestCase {
     
     protected void sendPost(final String urlFragment, final String body, final Integer expectedResponse) throws ClientProtocolException, IOException, InterruptedException {
         LOG.debug("sendPost: url={}, expectedResponse={}, body={}", urlFragment, expectedResponse, body);
-        final HttpPost post = new HttpPost(buildUrl(urlFragment));
+        final HttpPost post = new HttpPost(buildUrlExternal(urlFragment));
         post.setEntity(new StringEntity(body, ContentType.APPLICATION_XML));
         final Integer response = doRequest(post);
         if (expectedResponse == null) {
@@ -1693,7 +1662,7 @@ public class OpenNMSSeleniumTestCase {
 
     protected void sendPut(final String urlFragment, final String body, final Integer expectedResponse) throws ClientProtocolException, IOException, InterruptedException {
         LOG.debug("sendPut: url={}, expectedResponse={}, body={}", urlFragment, expectedResponse, body);
-        final HttpPut put = new HttpPut(buildUrl(urlFragment));
+        final HttpPut put = new HttpPut(buildUrlExternal(urlFragment));
         put.setEntity(new StringEntity(body, ContentType.APPLICATION_FORM_URLENCODED));
         final Integer response = doRequest(put);
         if (expectedResponse == null) {
@@ -1713,7 +1682,7 @@ public class OpenNMSSeleniumTestCase {
 
     protected void sendDelete(final String urlFragment, final Integer expectedResponse) throws ClientProtocolException, IOException, InterruptedException {
         LOG.debug("sendDelete: url={}, expectedResponse={}", urlFragment, expectedResponse);
-        final HttpDelete del = new HttpDelete(getBaseUrl() + "opennms" + (urlFragment.startsWith("/") ? urlFragment : "/" + urlFragment));
+        final HttpDelete del = new HttpDelete(getBaseUrlExternal() + "opennms" + (urlFragment.startsWith("/") ? urlFragment : "/" + urlFragment));
         final Integer response = doRequest(del);
         if (expectedResponse == null) {
             if (response == null || (response != 303 && response != 200 && response != 202 && response != 204)) {
